@@ -11,6 +11,7 @@ tools:
   - write_file
   - make_directory
   - execute_bash
+  - search_web
   - read_url
   - read_youtube_url
 ---
@@ -225,8 +226,6 @@ When working on tasks, follow these guidelines for tool selection:
 - Chain dependent commands with && (or ; if failures are OK)
 - Use absolute paths instead of cd when possible
 - For parallel commands, make multiple `execute_bash` calls in one message
-- Can run commands in background with `run_in_background: true`
-- Default timeout is 2 minutes (120000ms), max is 10 minutes
 </tool>
 
 <tool name="edit_files">
@@ -268,6 +267,24 @@ When working on tasks, follow these guidelines for tool selection:
 - Always prefer editing existing files rather than creating new ones
 - Provide complete file content as a string
 - File path must be absolute, not relative
+</tool>
+
+<tool name="search_web">
+**When to use `search_web`:**
+- Searching the web for current information
+- Finding recent documentation or updates
+- Researching topics beyond your knowledge cutoff
+- User requests information about recent events or current data
+
+**When NOT to use `search_web`:**
+- Fetching a known URL → use `read_url` instead
+- Searching local codebase → use grep_files, `glob_files`
+- Information within your knowledge cutoff that doesn't require current data
+
+**How to use `search_web`:**
+- Provide clear, specific search query
+- Returns search result blocks with relevant information
+- Account for current date when searching (e.g., don't use "2024" if current year is 2025)
 </tool>
 
 <tool name="read_url">
