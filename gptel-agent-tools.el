@@ -143,6 +143,7 @@ Call TOOL-CB if there is an error or a timeout.  TOOL-CB and ARGS are
 passed to URL-CB.  FAILED-MSG is a fragment used for messaging.  Handles
 cleanup."
   (let* ((timeout 30) timer done
+         (inherit-process-coding-system t)
          (proc-buffer
           (url-retrieve
            url (lambda (status)
@@ -182,38 +183,64 @@ cleanup."
       (goto-char next-pos))
     (goto-char next-pos)))
 
+(defvar gptel-agent--web-search-active nil)
+
 (defun gptel-agent--web-search-eww (tool-cb query &optional count)
   "Search the web using eww's default search engine (usually DuckDuckGo).
 
 Call TOOL-CB with the results as a string.  QUERY is the search string.
 COUNT is the number of results to return (default 5)."
-  (gptel-agent--fetch-with-timeout
-   (concat eww-search-prefix (url-hexify-string query))
-   (lambda (cb)
-     (let* ((count (or count 5)) (results))
-       (goto-char (point-min))
-       (goto-char url-http-end-of-headers)
-       (let* ((dom (libxml-parse-html-region (point) (point-max)))
-              (result-count 0))
-         (eww-score-readability dom)
-         (erase-buffer) (buffer-disable-undo)
-         (shr-insert-document (eww-highest-readability dom))
-         (goto-char (point-min))
-         (while (and (not (eobp)) (< result-count count))
-           (let ((pos (point))
-                 (url (get-char-property (point) 'shr-url))
-                 (next-pos (gptel-agent--shr-next-link)))
-             (when-let* (((stringp url))
-                         (idx (string-search "http" url))
-                         (url-fmt (url-unhex-string (substring url idx))))
-               (cl-incf result-count)
-               (push (concat url-fmt "\n\n"
-                             (string-trim
-                              (buffer-substring-no-properties pos next-pos))
-                             "\n\n----\n")
-                     results)))))
-       (funcall cb (apply #'concat (nreverse results)))))
-   tool-cb (format "Web search for \"%s\"" query)))
+  ;; No more than two active searches at one time
+  (setq gptel-agent--web-search-active
+        (cl-delete-if-not
+         (lambda (buf) (and (buffer-live-p buf)
+                       (process-live-p (get-buffer-process buf))))
+         gptel-agent--web-search-active))
+  (if (>= (length gptel-agent--web-search-active) 2)
+      (progn (message "Web search: waiting for turn")
+             (run-at-time 4 nil #'gptel-agent--web-search-eww
+                          tool-cb query count))
+    (push (gptel-agent--fetch-with-timeout
+           (concat eww-search-prefix (url-hexify-string query))
+           #'gptel-agent--web-search-eww-callback
+           tool-cb (format "Web search for \"%s\"" query))
+          gptel-agent--web-search-active)))
+
+(defun gptel-agent--web-fix-unreadable ()
+  (decode-coding-region (point-min) (point-max) 'utf-8)
+  (when-let* ((bad-points (check-coding-systems-region
+                           (point-min) (point-max) '(utf-8))))
+    (dolist (pos (cdar bad-points))
+      (goto-char pos)
+      (delete-char 1)
+      (insert "?"))))
+
+(defun gptel-agent--web-search-eww-callback (cb)
+  (let* ((count 5) (results))
+    (goto-char (point-min))
+    (goto-char url-http-end-of-headers)
+    (gptel-agent--web-fix-unreadable)
+    (let* ((dom (libxml-parse-html-region (point) (point-max)))
+           (result-count 0))
+      (eww-score-readability dom)
+      ;; (erase-buffer) (buffer-disable-undo)
+      (with-temp-buffer
+        (shr-insert-document (eww-highest-readability dom))
+        (goto-char (point-min))
+        (while (and (not (eobp)) (< result-count count))
+          (let ((pos (point))
+                (url (get-char-property (point) 'shr-url))
+                (next-pos (gptel-agent--shr-next-link)))
+            (when-let* (((stringp url))
+                        (idx (string-search "http" url))
+                        (url-fmt (url-unhex-string (substring url idx))))
+              (cl-incf result-count)
+              (push (concat url-fmt "\n\n"
+                            (string-trim
+                             (buffer-substring-no-properties pos next-pos))
+                            "\n\n----\n")
+                    results))))))
+    (funcall cb (apply #'concat (nreverse results)))))
 
 (gptel-make-tool
  :name "search_web"
@@ -242,12 +269,11 @@ If required, consider using the url as the input to the `read_url` tool to get t
    (lambda (cb)
      (goto-char (point-min)) (forward-paragraph)
      (condition-case errdata
-         (let ((dom (libxml-parse-html-region (point) (point-max)))
-               (url-buffer (current-buffer)))
-           (run-at-time 0 nil #'kill-buffer url-buffer)
+         (let ((dom (libxml-parse-html-region (point) (point-max))))
            (with-temp-buffer
              (eww-score-readability dom)
              (shr-insert-document (eww-highest-readability dom))
+             (decode-coding-region (point-min) (point-max) 'utf-8)
              (funcall
               cb (buffer-substring-no-properties
                   (point-min) (point-max)))))
@@ -849,7 +875,10 @@ Consider using the more granular tools \"insert_in_file\" or \"edit_files\" firs
     (error "Error: File %s is not readable" filename))
 
   (when (file-directory-p filename)
-    (error "Error: Cannot insert into directory %s" filename))
+    (error "Error: Cannot read directory %s as file" filename))
+
+  (when (file-symlink-p filename)
+    (setq filename (file-truename filename)))
 
   (if (and (not start-line) (not end-line)) ;read full file
       (if (> (file-attribute-size (file-attributes filename))
@@ -868,7 +897,7 @@ Please specify a line range to read")
         ;; Go to start-line
         (while (and (> start-line 0)
                     (< byte-offset file-size))
-          (insert-file-contents-literally
+          (insert-file-contents
            filename nil byte-offset (+ byte-offset chunk-size))
           (setq byte-offset (+ byte-offset chunk-size))
           (setq start-line (forward-line start-line))
