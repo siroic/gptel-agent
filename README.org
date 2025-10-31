@@ -24,6 +24,11 @@ Markdown or Org files in a directory.  To see how to specify agents, examine the
 "agents" directory in this package.  You can add your directory of agents to
 =gptel-agent-dirs=, which see.
 
+In this demo, gptel-agent delegates a research task to two agents, who perform
+it in parallel and generate reports that gptel-agent uses to answer the question:
+
+https://github.com/user-attachments/assets/03585600-3bb9-4bf7-b5c8-7e02a28c7a37
+
 Right now there are only two sub-agents: =researcher= and =introspector=.  You
 can ask the LLM to delegate a task to them.
 
