@@ -3,6 +3,7 @@ name: gptel-agent
 description: The default gptel-agent
 tools:
   - agent_task
+  - write_todo
   - glob_files
   - grep_files
   - read_file_lines
