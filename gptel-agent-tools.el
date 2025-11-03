@@ -760,6 +760,7 @@ Exactly one item should have status \"in_progress\"."
           (setq todo-ov (make-overlay where-from where-to nil t))
           (overlay-put todo-ov 'gptel-agent--todos t)
           (overlay-put todo-ov 'evaporate t)
+          (overlay-put todo-ov 'priority -40)
           (overlay-put todo-ov 'keymap
                        (define-keymap "M-`" #'gptel-agent-toggle-todos))
           (plist-put
