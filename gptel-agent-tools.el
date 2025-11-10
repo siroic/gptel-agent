@@ -108,6 +108,47 @@
                         (1- (point)) 'gptel-agent-tool))))
     (goto-char (overlay-start ov))))
 
+(defsubst gptel-agent--block-bg ()
+  "Return a background face suitable for displaying code."
+  (cond
+   ((derived-mode-p 'org-mode) 'org-block)
+   ((derived-mode-p 'markdown-mode) 'markdown-code-face)
+   (t `( :background ,(face-attribute 'mode-line-inactive :background)
+         :extend t))))
+
+(defun gptel-agent--fontify-block (path-or-mode start end)
+  "Fontify region from START to END.
+
+Fontification is assuming it is the contents of file PATH-OR-MODE (if it
+is a string), or major-mode (if it is a symbol).  Applied font-lock-face
+properties persist through refontification."
+  (let ((lang-mode)                     ; (org-src-get-lang-mode lang)
+        (org-buffer (current-buffer)))
+    (with-temp-buffer
+      (insert-buffer-substring-no-properties org-buffer start end)
+      (insert " ")                      ; Add space to ensure property change
+      (if (symbolp path-or-mode)
+          (setq lang-mode path-or-mode)
+        (let ((buffer-file-name path-or-mode))
+          (setq lang-mode
+                (or (cdr (assoc-string
+                          (concat
+                           "\\." (file-name-extension path-or-mode) "\\'")
+                          auto-mode-alist))
+                    (progn (set-auto-mode t) major-mode)))))
+      (delay-mode-hooks (funcall lang-mode))
+      (font-lock-ensure)
+      (let ((pos (point-min)))
+        (while (< pos (1- (point-max))) ; Skip the added space
+          (let* ((next (next-property-change pos nil (1- (point-max))))
+                 (face-prop (get-text-property pos 'face)))
+            (when face-prop
+              (put-text-property
+               (+ start (- pos (point-min)))
+               (+ start (- (or next (1- (point-max))) (point-min)))
+               'font-lock-face face-prop org-buffer))
+            (setq pos (or next (1- (point-max))))))))))
+
 ;;; System tools
 ;; "Execute Bash commands to inspect files and system state.
 
@@ -484,102 +525,45 @@ Errors with low severity are not collected."
 
 (defun gptel-agent--edit-files-preview-setup (arg-values _info)
   "Insert tool call preview for ARG-VALUES for \"edit_files\" tool."
-  (let ((from (point)))
-    (insert (apply #'gptel-agent--edit-files-preview-string
-                   arg-values))
-    (gptel-agent--confirm-overlay from (point))))
+  (pcase-let ((from (point)) (files-affected) (description)
+              (`(,path ,old-str ,new-str-or-diff ,diffp) arg-values))
 
-(defun gptel-agent--edit-files-preview-string (path &optional old-str new-str-or-diff diffp)
-  "Generate the tool call preview string for the \"edit_files\" tool.
-
-PATH, OLD-STR, NEW-STR-OR-DIFF and DIFFP are the args for this tool."
-  (with-temp-buffer
-    (let ((preview-content "")
-          (files-affected))
-      ;; Handle diff mode
-      (if (and diffp (not (eq diffp :json-false)))
-          (progn
-            (insert new-str-or-diff)
-            ;; Remove code fences if present
-            (goto-char (point-min))
+    (if (and diffp (not (eq diffp :json-false)))
+        (progn                          ;Patch
+          (insert new-str-or-diff)
+          (save-excursion
+            (while (re-search-backward "^\\+\\+\\+ \\(.*\\)$" from t)
+              (push (match-string 1) files-affected))
+            (goto-char from)
             (when (looking-at "^ *```\\(diff\\|patch\\)\\s-*\n")
-              (delete-region (match-beginning 0) (match-end 0)))
-            (goto-char (point-max))
-            ;; Search backwards for closing fence, delete it and any trailing whitespace
-            (when (re-search-backward "^ *```\\s-*\\'" nil t)
-              (delete-region (match-beginning 0) (point-max)))
-
-            ;; Apply diff highlighting and collect file names
-            (goto-char (point-min))
-            (while (not (eobp))
-              (cond
-               ;; File headers
-               ((looking-at "^\\(---\\|\\+\\+\\+\\) \\(.*\\)$")
-                (let ((prefix (match-string 1))
-                      (file (match-string 2)))
-                  ;; Collect files affected (only from +++ lines to avoid duplicates)
-                  (when (string= prefix "+++")
-                    (push file files-affected))
-                  (delete-region (line-beginning-position) (line-end-position))
-                  (insert (propertize prefix 'font-lock-face 'diff-header) " "
-                          (propertize file 'font-lock-face 'diff-file-header))))
-
-               ;; Hunk headers
-               ((looking-at "^@@.*@@")
-                (let ((hunk (match-string 0)))
-                  (delete-region (line-beginning-position) (line-end-position))
-                  (insert (propertize hunk 'font-lock-face 'diff-hunk-header))))
-
-               ;; Removed lines
-               ((looking-at "^-\\([^-].*\\)?$")
-                (let ((line (buffer-substring (line-beginning-position) (line-end-position))))
-                  (delete-region (line-beginning-position) (line-end-position))
-                  (insert (propertize line 'font-lock-face 'diff-removed))))
-
-               ;; Added lines
-               ((looking-at "^\\+\\([^+].*\\)?$")
-                (let ((line (buffer-substring (line-beginning-position) (line-end-position))))
-                  (delete-region (line-beginning-position) (line-end-position))
-                  (insert (propertize line 'font-lock-face 'diff-added))))
-
-               ;; Context lines (keep as-is)
-               (t nil))
-              (forward-line 1))
-
-            (setq preview-content (buffer-string))
-            (setq files-affected (nreverse files-affected)))
-
-        ;; Handle string replacement mode
-        (when old-str
-          (setq preview-content
-                (concat (propertize old-str 'font-lock-face 'diff-removed
-                                    'line-prefix (propertize "-" 'face 'diff-removed))
-                        "\n" (propertize new-str-or-diff 'font-lock-face 'diff-added
-                                         'line-prefix (propertize "+" 'face 'diff-added))
-                        "\n"))))
-
-      (concat  ; Return formatted preview with appropriate header
-       ;; Generate header based on whether we have multiple files or not
-       (if (and diffp (not (eq diffp :json-false)) files-affected)
-           (if (> (length files-affected) 1)
-               (propertize
-                (format
-                 "(%s %s %s)\n"
-                 (propertize "patch_files" 'font-lock-face 'font-lock-keyword-face)
-                 (propertize (concat "\"" path "\"") 'font-lock-face 'font-lock-constant-face)
-                 (mapconcat (lambda (f) (propertize f 'font-lock-face 'diff-file-header))
-                            files-affected " "))
-                'face 'font-lock-comment-face)
-             (propertize
-              (format "(%s %s)\n"
-                      (propertize "patch_file" 'font-lock-face 'font-lock-keyword-face)
-                      (propertize (concat "\"" (file-name-nondirectory (car files-affected)) "\"")
-                                  'font-lock-face 'diff-file-header))
-              'face 'font-lock-comment-face))
-         (format "(%s %s)\n"
-                 (propertize "replace_text" 'font-lock-face 'font-lock-keyword-face)
-                 (propertize (concat "\"" path "\"") 'font-lock-face 'font-lock-constant-face)))
-       preview-content))))
+              (delete-region (match-beginning 0) (match-end 0))))
+          (skip-chars-backward " \t\r\n") (forward-line 0)
+          (when (looking-at-p "^ *```\\s-*\\'")
+            (delete-region (line-beginning-position) (line-end-position)))
+          (setq description (if (> (length files-affected) 1)
+                                "patch_files" "patch_file"))
+          (gptel-agent--fontify-block 'diff-mode from (point)))
+      (when old-str                     ;Text replacement
+        (push path files-affected)
+        (setq description "replace_text")
+        (insert
+         (propertize old-str 'font-lock-face 'diff-removed
+                     'line-prefix (propertize "-" 'face 'diff-removed))
+         "\n" (propertize new-str-or-diff 'font-lock-face 'diff-added
+                          'line-prefix (propertize "+" 'face 'diff-added))
+         "\n")))
+    (insert "\n")
+    (font-lock-append-text-property
+     from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
+    (save-excursion
+      (goto-char from)
+      (insert
+       "(" (propertize description 'font-lock-face 'font-lock-keyword-face)
+       " " (mapconcat (lambda (f) (propertize (concat "\"" f "\"")
+                                         'font-lock-face 'font-lock-constant-face))
+                      files-affected " ")
+       ")\n"))
+    (gptel-agent--confirm-overlay from (point) t)))
 
 (defun gptel-agent--fix-patch-headers ()
   "Fix line numbers in hunks in diff at point."
@@ -747,7 +731,8 @@ Patch STDOUT:\n%s"
   "Preview setup for insert_in_file.
 INFO is the tool call info plist.
 ARG-VALUES is a list: (path line-number new-str)"
-  (let ((from (point)))
+  (let ((from (point)) (line-offset)
+        (face-bg (gptel-agent--block-bg)))
     (pcase-let ((`(,path ,line-number ,new-str) arg-values))
       (insert "("
               (propertize "insert_into_file " 'font-lock-face 'font-lock-keyword-face)
@@ -755,28 +740,33 @@ ARG-VALUES is a list: (path line-number new-str)"
                           'font-lock-face 'font-lock-constant-face)
               ")\n")
       (if (file-readable-p path)
-        (insert
-         (with-temp-buffer         ;NEW-STR with context lines, styled as a diff
-           (insert-file-contents path)
-           (pcase line-number
-             (-1 (goto-char (point-max)))
-             (_ (forward-line line-number)))
-           (save-excursion
-             (forward-line -4)
-             (delete-region (point-min) (point)))
-           (put-text-property (point-min) (point-max) 'line-prefix " ")
-           (insert (propertize new-str 'font-lock-face 'diff-added
-                               'fontified t 'font-lock-multiline t
-                               'line-prefix (propertize "+" 'face 'diff-added)))
-           (save-excursion
-             (forward-line 4)
-             (delete-region (point) (point-max)))
-           (put-text-property (point) (point-max) 'line-prefix " ")
-           (goto-char (point-max))
-           (buffer-string)))
-        (insert (propertize "[File not readable]\n"
-                            'font-lock-face
-                            'font-lock-comment-face)))
+          (insert
+           (with-temp-buffer       ;NEW-STR with context lines, styled as a diff
+             (insert-file-contents path)
+             (pcase line-number
+               (-1 (goto-char (point-max)))
+               (_ (forward-line line-number)))
+             (save-excursion
+               (forward-line -6)
+               (setq line-offset (line-number-at-pos))
+               (delete-region (point-min) (point))
+               (dotimes (_ 12)
+                 (put-text-property
+                  (line-beginning-position) (line-end-position)
+                  'line-prefix (propertize (format "%4d " line-offset) 'face
+                                           `(:inherit ,face-bg :inherit line-number)))
+                 (forward-line 1) (when (eolp) (insert " "))
+                 (cl-incf line-offset)))
+             (insert (propertize new-str 'font-lock-face 'diff-added
+                                 'fontified t 'font-lock-multiline t
+                                 'line-prefix (propertize "   + " 'face 'diff-added)))
+             (save-excursion
+               (forward-line 6)
+               (delete-region (point) (point-max)))
+             (font-lock-append-text-property
+              (point-min) (point-max) 'font-lock-face face-bg)
+             (buffer-string)) "\n")
+        (insert (propertize "[File not readable]\n\n" 'font-lock-face 'error)))
       (gptel-agent--confirm-overlay from (point)))))
 
 (defun gptel-agent--insert-in-file (path line-number new-str)
@@ -1020,7 +1010,8 @@ Exactly one item should have status \"in_progress\"."
   "Preview setup for agent_task.
 INFO is the tool call info plist.
 ARG-VALUES is a list: (type description prompt)"
-  (pcase-let ((`(,type ,desc ,prompt) arg-values))
+  (pcase-let ((from (point))
+              (`(,type ,desc ,prompt) arg-values))
     (insert "("
             (propertize "agent " 'font-lock-face 'font-lock-keyword-face)
             (propertize (prin1-to-string type)
@@ -1029,10 +1020,11 @@ ARG-VALUES is a list: (type description prompt)"
                             'font-lock-face
                             '(:inherit font-lock-constant-face :inherit bold))
             "\n" (propertize (prin1-to-string prompt)
-                             'line-prefix "       "
-                             'wrap-prefix "       "
+                             'line-prefix "  "
+                             'wrap-prefix "  "
                              'font-lock-face 'font-lock-constant-face)
-            ")\n")))
+            ")\n\n")
+    (gptel-agent--confirm-overlay from (point))))
 
 (defun gptel-agent--indicate-wait (fsm)
   (when-let* ((info (gptel-fsm-info fsm))
