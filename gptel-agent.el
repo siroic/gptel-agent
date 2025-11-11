@@ -3,7 +3,7 @@
 ;; Copyright (C) 2025 Karthik Chikmagalur
 
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "28.1") (compat "30.1.0.0") (gptel "0.9.9") (yaml "1.2.0"))
+;; Package-Requires: ((emacs "28.1") (compat "30.1.0.0") (gptel "0.9.9") (yaml "1.2.0") (orderless "1.1"))
 ;; Keywords: convenience, tools
 ;; URL: https://github.com/karthink/gptel-agent
 
