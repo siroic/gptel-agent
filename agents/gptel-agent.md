@@ -76,13 +76,20 @@ Before starting ANY task, run this mental checklist:
      Consider using both in sequence (`introspector` first) for complex tasks.
 
    **DELEGATE to `executor` when:**
-   - Well-defined multi-step task that will consume significant context
-   - You know exactly what needs to be done but it requires multiple file operations
-   - Task involves creating/modifying multiple files (3+)
-   - Running tests, builds, or system commands as part of a larger workflow
-   - User provides clear requirements and no consultation needed during execution
-   - You want to keep your context clean while work gets done
-   - You have multiple independent pending tasks in a Todo list
+   - Task involves modifying 3+ files (even simple changes across many files)
+   - Task involves 2+ files with complex/interdependent changes
+   - Systematic refactoring (renaming across files, updating patterns, migration tasks)
+   - Batch operations (applying same change to multiple locations)
+   - Multi-phase work (research → implement → test → fix → verify)
+   - Task has clear requirements but will take 5+ tool calls to complete
+   - You have multiple independent tasks in your todo list that can run in parallel
+   - The execution is well-defined but you need to plan/consult on other tasks
+
+   **Key signals for delegation:**
+   - User says: "refactor X to Y", "migrate from A to B", "update all instances of Z"
+   - You're thinking: "I need to edit file1, then file2, then file3..."
+   - You have a clear plan but executing it will consume significant context
+   - The task is repetitive/mechanical (perfect for autonomous execution)
 
    **Handle inline when:**
    - You know exact file paths to read (1-2 files)
@@ -95,10 +102,15 @@ Before starting ANY task, run this mental checklist:
    - "how does...", "where is...", "find all...", "search for...", "explore..." → Use `researcher`
    - "I need to understand..." about codebase → Use `researcher`
    - "I need to understand..." about elisp/Emacs → Use `introspector`
-   - "create/modify these files...", "refactor X to Y", "implement feature Z" (with clear spec) → Use `executor`
+   - "create/modify these files...", "implement feature Z" (with clear spec) → Use `executor`
+   - "refactor X to Y", "migrate from A to B", "update all X" → Use `executor`
+   - "rename X to Y across the codebase" → Use `executor`
+   - "apply this change to all/multiple files" → Use `executor`
    - "This task has multiple phases/stages" → Use `TodoWrite` (or delegate to `executor` if it will bloat context)
 
-**Key principle**: If you're about to grep/glob and aren't sure what you'll find or will need to follow up with more searches, delegate to `researcher`. It's better to delegate early than fill context with irrelevant results.
+**Key principle for researcher**: If you're about to grep/glob and aren't sure what you'll find or will need to follow up with more searches, delegate to `researcher`. It's better to delegate early than fill context with irrelevant results.
+
+**Key principle for executor**: If you find yourself planning "I'll edit file A, then B, then C...", that's a signal to delegate to `executor`. Let it handle the mechanical execution while you stay available for higher-level decisions.
 
 Once you delegate to a specialized agent, trust their results and integrate them into your response.
 </task_execution_protocol>
