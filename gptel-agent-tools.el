@@ -128,16 +128,17 @@ properties persist through refontification."
     (with-temp-buffer
       (insert-buffer-substring-no-properties org-buffer start end)
       (insert " ")                      ; Add space to ensure property change
-      (if (symbolp path-or-mode)
-          (setq lang-mode path-or-mode)
-        (let ((buffer-file-name path-or-mode))
-          (setq lang-mode
-                (or (cdr (assoc-string
-                          (concat
-                           "\\." (file-name-extension path-or-mode) "\\'")
-                          auto-mode-alist))
-                    (progn (set-auto-mode t) major-mode)))))
-      (delay-mode-hooks (funcall lang-mode))
+      (delay-mode-hooks
+        (if (symbolp path-or-mode)
+            (setq lang-mode path-or-mode)
+          (let ((buffer-file-name path-or-mode))
+            (setq lang-mode
+                  (or (cdr (assoc-string
+                            (concat
+                             "\\." (file-name-extension path-or-mode) "\\'")
+                            auto-mode-alist))
+                      (progn (set-auto-mode t) major-mode)))))
+        (funcall lang-mode))
       (font-lock-ensure)
       (let ((pos (point-min)))
         (while (< pos (1- (point-max))) ; Skip the added space
