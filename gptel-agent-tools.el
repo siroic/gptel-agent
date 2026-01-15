@@ -221,6 +221,31 @@ ARG-VALUES is the list of arguments for the tool call."
      inner-from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
     (gptel-agent--confirm-overlay from (point) t)))
 
+(defun gptel-agent--execute-bash (callback command)
+  "Execute COMMAND asynchronously in bash and call CALLBACK with output.
+
+CALLBACK is called with the command output string when the process finishes.
+COMMAND is the bash command string to execute."
+  (let* ((output-buffer (generate-new-buffer " *gptel-agent-bash*"))
+         (proc (make-process
+                :name "gptel-agent-bash"
+                :buffer output-buffer
+                :command (list "bash" "-c" command)
+                :connection-type 'pipe
+                :sentinel
+                (lambda (process _event)
+                  (when (memq (process-status process) '(exit signal))
+                    (let* ((exit-code (process-exit-status process))
+                           (output (with-current-buffer (process-buffer process)
+                                     (buffer-string))))
+                      (kill-buffer (process-buffer process))
+                      (funcall callback
+                               (if (zerop exit-code)
+                                   output
+                                 (format "Command failed with exit code %d:\nSTDOUT+STDERR:\n%s"
+                                         exit-code output)))))))))
+    proc))
+
 ;;; Web tools
 
 (defun gptel-agent--fetch-with-timeout (url url-cb tool-cb failed-msg &rest args)
@@ -931,7 +956,8 @@ CONTEXT-LINES specifies the number of lines of context to show
   around each match (0-15 inclusive, defaults to 0).
 
 Returns a string containing matches grouped by file, with line numbers
-and optional context. Results are sorted by modification time."
+and optional context.  Results are limited to 1000 or fewer matches per
+file.  Results are sorted by modification time."
   (unless (file-readable-p path)
     (error "Error: File or directory %s is not readable" path))
   (let ((grepper (or (executable-find "rg") (executable-find "grep"))))
@@ -946,7 +972,8 @@ and optional context. Results are sorted by modification time."
                                 (and (natnump context-lines)
                                      (format "--context=%d" context-lines))
                                 (and glob (format "--glob=%s" glob))
-                                ;; "--files-with-matches" "--max-count=10"
+                                ;; "--files-with-matches"
+                                "--max-count=1000"
                                 "--heading" "--line-number" "-e" regex
                                 (expand-file-name (substitute-in-file-name path)))))
                ((string= "grep" cmd)
@@ -954,6 +981,7 @@ and optional context. Results are sorted by modification time."
                                 (and (natnump context-lines)
                                      (format "--context=%d" context-lines))
                                 (and glob (format "--include=%s" glob))
+                                "--max-count=1000"
                                 "--line-number" "--regexp" regex
                                 (expand-file-name (substitute-in-file-name path)))))
                (t (error "Error: failed to identify grepper"))))
@@ -1219,16 +1247,7 @@ Error details: %S"
 
 (gptel-make-tool
  :name "Bash"
- :function (lambda (command)
-             "Execute a bash command and return its output.
-
-COMMAND is the bash command string to execute."
-             (with-temp-buffer
-               (let* ((exit-code (call-process "bash" nil (current-buffer) nil "-c" command))
-                      (output (buffer-string)))
-                 (if (zerop exit-code)
-                     output
-                   (format "Command failed with exit code %d:\nSTDOUT+STDERR:\n%s" exit-code output)))))
+ :function #'gptel-agent--execute-bash
  :description "Execute Bash commands.
 
 This tool provides access to a Bash shell with GNU coreutils (or equivalents) available.
@@ -1259,7 +1278,8 @@ Can include pipes and standard shell operators.
 Example: 'ls -la | head -20' or 'grep -i error app.log | tail -50'"))
  :category "gptel-agent"
  :confirm t
- :include t)
+ :include t
+ :async t)
 
 (gptel-make-tool
  :name "Eval"
@@ -1495,6 +1515,7 @@ Consider using the more granular tools \"Insert\" or \"Edit\" first."
 
 - Supports glob patterns like \"*.md\" or \"*test*.py\".
   The glob applies to the basename of the file (with extension).
+- Does not support double wildcard \"**/*\".
 - Returns matching file paths at all depths sorted by modification time.
   Limit the depth of the search by providing the `depth` argument.
 - When you are doing an open ended search that may require multiple rounds
