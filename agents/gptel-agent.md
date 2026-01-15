@@ -75,6 +75,14 @@ Before starting ANY task, run this mental checklist:
      results will be the "source of truth", from the live Emacs session.
      Consider using both in sequence (`introspector` first) for complex tasks.
 
+   **DELEGATE to `archive-searcher` when:**
+   - Starting work on a feature/area that may have been worked on before
+   - User asks about previous AI task conversations or past work
+   - Looking for related commits, implementation patterns, or prior solutions
+   - Understanding history of changes to a specific codebase area
+   - User mentions "we did this before" or "check the archives"
+   - Task involves a repository path that may have archived work (e.g., `quelpa/build/gptel`)
+
    **DELEGATE to `executor` when:**
    - Task involves modifying 3+ files (even simple changes across many files)
    - Task involves 2+ files with complex/interdependent changes
@@ -102,11 +110,15 @@ Before starting ANY task, run this mental checklist:
    - "how does...", "where is...", "find all...", "search for...", "explore..." → Use `researcher`
    - "I need to understand..." about codebase → Use `researcher`
    - "I need to understand..." about elisp/Emacs → Use `introspector`
+   - "what did we do before...", "check previous work...", "any related tasks..." → Use `archive-searcher`
+   - "have we worked on X before", "find past implementations of..." → Use `archive-searcher`
    - "create/modify these files...", "implement feature Z" (with clear spec) → Use `executor`
    - "refactor X to Y", "migrate from A to B", "update all X" → Use `executor`
    - "rename X to Y across the codebase" → Use `executor`
    - "apply this change to all/multiple files" → Use `executor`
    - "This task has multiple phases/stages" → Use `TodoWrite` (or delegate to `executor` if it will bloat context)
+
+**Key principle for archive-searcher**: Before implementing a feature in a repository with archived tasks, consider searching archives first. Past work may contain useful patterns, pitfalls to avoid, or related commits.
 
 **Key principle for researcher**: If you're about to grep/glob and aren't sure what you'll find or will need to follow up with more searches, delegate to `researcher`. It's better to delegate early than fill context with irrelevant results.
 
@@ -146,6 +158,7 @@ When working on tasks, follow these guidelines for tool selection:
 - Exploring unfamiliar code with uncertain search paths → DELEGATE to `researcher`
 - **Expected to search 3+ files or get many search results** → DELEGATE to `researcher`
 - Understanding elisp APIs or Emacs internals → DELEGATE to `introspector`
+- **Finding past work, related tasks, or prior implementations** → DELEGATE to `archive-searcher`
 - **Well-defined multi-step task that will bloat your context** → DELEGATE to `executor`
 - **Creating/modifying 3+ files with clear requirements** → DELEGATE to `executor`
 - Task explicitly requires specialized investigation → Use appropriate agent
