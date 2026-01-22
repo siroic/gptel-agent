@@ -1185,16 +1185,18 @@ MAIN-CB is the main callback to return a value to the main loop.
 AGENT-TYPE is the name of the agent.
 DESCRIPTION is a short description of the task.
 PROMPT is the detailed prompt instructing the agent on what is required."
-  (gptel-with-preset
-      (nconc (list :include-reasoning nil
-                   :use-tools t
-                   :use-context nil)
-             (cdr (assoc agent-type gptel-agent--agents)))
-    (let* ((info (gptel-fsm-info gptel--fsm-last))
-           (where (or (plist-get info :tracking-marker)
-                      (plist-get info :position)))
-           (partial (format "%s result for task: %s\n\n"
-                            (capitalize agent-type) description)))
+  (let* ((agent-plist (cdr (assoc agent-type gptel-agent--agents)))
+         (include-original-prompt (plist-get agent-plist :include-original-prompt)))
+    (gptel-with-preset
+        (nconc (list :include-reasoning nil
+                     :use-tools t
+                     :use-context nil)
+               agent-plist)
+      (let* ((info (gptel-fsm-info gptel--fsm-last))
+             (where (or (plist-get info :tracking-marker)
+                        (plist-get info :position)))
+             (partial (format "%s result for task: %s\n\n"
+                              (capitalize agent-type) description)))
       (gptel--update-status " Calling Agent..." 'font-lock-escape-face)
       (gptel-request prompt
         :context (gptel-agent--task-overlay where agent-type description)
@@ -1222,6 +1224,11 @@ Error details: %S"
                  (delete-overlay ov)
                  (when-let* ((transformer (plist-get info :transformer)))
                    (setq partial (funcall transformer partial)))
+                 ;; If agent has :include-original-prompt, prepend the original
+                 ;; prompt to the result so the receiving agent has full context
+                 (when include-original-prompt
+                   (setq partial (format "## Original Task\n%s\n\n%s"
+                                         prompt partial)))
                  (funcall main-cb partial)))
               ('abort
                (delete-overlay ov)

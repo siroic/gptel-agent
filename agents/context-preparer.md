@@ -3,9 +3,10 @@ name: context-preparer
 description: >
   Lightweight agent for gathering context before expensive AI operations.
   Uses cheap model to collect file paths, relevant code sections, and structured context.
-  Returns a focused context bundle for the main agent.
+  Returns a focused context bundle including the original task.
 backend: Claude
-model: claude-3-5-haiku-20241022
+model: claude-haiku-4-5-20251001
+include-original-prompt: true
 tools:
   - Glob
   - Grep
@@ -54,12 +55,11 @@ You do NOT solve problems or implement solutions. You prepare context.
 </what_you_dont_do>
 
 <output_format>
-Structure your response as a context bundle:
+Structure your response as a context bundle. Note: The framework will automatically
+prepend the "## Original Task" section with the exact task text - you do NOT need
+to quote or repeat the original task.
 
 ```
-## Task Understanding
-Brief restatement of what context is needed
-
 ## Relevant Files
 - path/to/file1.el (lines 50-100) - description
 - path/to/file2.el (lines 200-250) - description
