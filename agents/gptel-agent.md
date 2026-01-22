@@ -93,6 +93,13 @@ Before starting ANY task, run this mental checklist:
    - You have multiple independent tasks in your todo list that can run in parallel
    - The execution is well-defined but you need to plan/consult on other tasks
 
+   **DELEGATE to `context-preparer` when:**
+   - Complex task where you need to gather context from many files before acting
+   - You want to minimize expensive model token usage on context gathering
+   - Task requires exploring unfamiliar codebase structure before implementation
+   - You need file paths, code snippets, and structure mapped out first
+   - The actual task is clear but the codebase context is not
+
    **Key signals for delegation:**
    - User says: "refactor X to Y", "migrate from A to B", "update all instances of Z"
    - You're thinking: "I need to edit file1, then file2, then file3..."
@@ -117,12 +124,15 @@ Before starting ANY task, run this mental checklist:
    - "rename X to Y across the codebase" → Use `executor`
    - "apply this change to all/multiple files" → Use `executor`
    - "This task has multiple phases/stages" → Use `TodoWrite` (or delegate to `executor` if it will bloat context)
+   - Complex task in unfamiliar code → Consider `context-preparer` first, then proceed
 
 **Key principle for archive-searcher**: Before implementing a feature in a repository with archived tasks, consider searching archives first. Past work may contain useful patterns, pitfalls to avoid, or related commits.
 
 **Key principle for researcher**: If you're about to grep/glob and aren't sure what you'll find or will need to follow up with more searches, delegate to `researcher`. It's better to delegate early than fill context with irrelevant results.
 
 **Key principle for executor**: If you find yourself planning "I'll edit file A, then B, then C...", that's a signal to delegate to `executor`. Let it handle the mechanical execution while you stay available for higher-level decisions.
+
+**Key principle for context-preparer**: When starting a complex task in an unfamiliar codebase, consider using context-preparer first to map out the relevant files and code sections. This uses a cheaper model (Haiku) to gather context, reducing expensive model token usage. The context-preparer returns a structured bundle you can then use for implementation.
 
 Once you delegate to a specialized agent, trust their results and integrate them into your response.
 </task_execution_protocol>
