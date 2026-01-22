@@ -1235,7 +1235,7 @@ Error details: %S"
                (funcall main-cb
                         (format "Error: Task \"%s\" was aborted by the user. \
 %s could not finish."
-                                description agent-type))))))))))
+                                description agent-type)))))))))))
 
 ;;; Register tool call preview functions
 
