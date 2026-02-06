@@ -661,6 +661,21 @@ diagnostics."
       (insert (format "@@ -%d,%d +%d,%d @@\n"
                       orig-line orig-count new-line new-count)))))
 
+;;;; Create a directory
+(defun gptel-agent--make-directory (parent name)
+  "Create a directory NAME in PARENT directory.
+
+Creates the directory and any missing parent directories. If the
+directory already exists, this is a no-op and returns success.
+
+PARENT is the parent directory path,NAME is the name of the new
+directory to create."
+  (condition-case errdata
+      (progn
+        (make-directory (expand-file-name name parent) t)
+        (format "Directory %s created/verified in %s" name parent))
+    (error "Error creating directory %s in %s:\n%S" name parent errdata)))
+
 (defun gptel-agent--edit-files (path &optional old-str new-str-or-diff diffp)
   "Replace text in file(s) at PATH using either string matching or unified diff.
 
@@ -884,6 +899,89 @@ ARG-VALUES is the list of arguments for the tool call."
       (when (derived-mode-p 'org-mode)
         (org-escape-code-in-region inner-from (1- (point)))))
     (gptel-agent--confirm-overlay from (point))))
+
+;;;; Write content to a file
+(defun gptel-agent--write-file (path filename content)
+  "Write CONTENT to FILENAME in PATH.
+
+PATH and FILENAME are expanded to create the full path. CONTENT is
+written to the file. Returns a success message string, or signals an
+error if writing fails.
+
+PATH, FILENAME, and CONTENT must all be strings."
+  (unless (and (stringp path) (stringp filename) (stringp content))
+    (error "PATH, FILENAME or CONTENT is not a string, cancelling action"))
+  (let ((full-path (expand-file-name filename path)))
+    (condition-case errdata
+        (with-temp-buffer
+          (insert content)
+          (write-file full-path)
+          (format "Created file %s in %s" filename path))
+      (error "Error: Could not write file %s:\n%S" path errdata))))
+
+;;;; Find files using regexes
+(defun gptel-agent--glob (pattern &optional path depth)
+  "Find files matching PATTERN using the `tree' command.
+
+PATTERN is a case-insensitive regex pattern to match filenames against.
+PATH is the optional directory to search (defaults to current directory).
+DEPTH limits recursion depth when provided (non-negative integer).
+
+Returns a string listing matching files with full paths, sorted by
+modification time.  If the output is too large (>20000 chars), it writes
+the full results to a temporary file and returns a truncated version with
+instructions to use `Read' for the full contents.
+
+Raises an error if PATTERN is empty, PATH is not readable, or the
+`tree' executable is not found."
+  (when (string-empty-p pattern)
+    (error "Error: pattern must not be empty"))
+  (if path
+      (unless (and (file-readable-p path) (file-directory-p path))
+        (error "Error: path %s is not readable" path))
+    (setq path "."))
+  (unless (executable-find "tree")
+    (error "Error: Executable `tree` not found.  This tool cannot be used"))
+  (let ((full-path (expand-file-name path)))
+    (with-temp-buffer
+      (let* ((args (list "-l" "-f" "-i" "-I" ".git"
+                         "--sort=mtime" "--ignore-case"
+                         "--prune" "-P" pattern full-path))
+             (args (if (natnump depth)
+                       (nconc args (list "-L" (number-to-string depth)))
+                     args))
+             (exit-code (apply #'call-process "tree" nil t nil args)))
+        (when (/= exit-code 0)
+          (goto-char (point-min))
+          (insert (format "Glob failed with exit code %d\n.STDOUT:\n\n"
+                          exit-code))))
+      (when (> (buffer-size) 20000)
+        ;; Too large - save to temp file and return truncated info
+        (let* ((temp-dir (expand-file-name "gptel-agent-temp"
+                                           (temporary-file-directory)))
+               (temp-file (expand-file-name
+                           (format "glob-%s-%s.txt"
+                                   (format-time-string "%Y%m%d-%H%M%S")
+                                   (random 10000))
+                           temp-dir)))
+          (unless (file-directory-p temp-dir) (make-directory temp-dir t))
+          (write-region nil nil temp-file)
+          (let ((max-lines 50)
+                (orig-size (buffer-size))
+                (orig-lines (line-number-at-pos (point-max))))
+            ;; Insert header
+            (goto-char (point-min))
+            (insert (format "Glob results too large (%d chars, %d lines)\
+ for context window.\nStored in: %s\n\nFirst %d lines:\n\n"
+                            orig-size orig-lines temp-file max-lines))
+            ;; Truncate to first max-lines lines
+            (forward-line max-lines)
+            (delete-region (point) (point-max))
+            ;; Insert footer
+            (goto-char (point-max))
+            (insert (format "\n\n[Use Read tool with file_path=\"%s\" to view full results]"
+                            temp-file)))))
+      (buffer-string))))
 
 ;;;; Read files or directories
 (defun gptel-agent--read-file-lines (filename start-line end-line)
@@ -1406,12 +1504,7 @@ too."
 (gptel-make-tool
  :name "Mkdir"
  :description "Create a new directory with the given name in the specified parent directory"
- :function (lambda (parent name)
-             (condition-case errdata
-                 (progn
-                   (make-directory (expand-file-name name parent) t)
-                   (format "Directory %s created/verified in %s" name parent))
-               (error "Error creating directory %s in %s:\n%S" name parent errdata)))
+ :function #'gptel-agent--make-directory
  :args (list '( :name "parent"
                 :type "string"
                 :description "The parent directory where the new directory should be created, e.g. /tmp")
@@ -1494,16 +1587,7 @@ specific location with no changes to the surrounding context."
  :description "Create a new file with the specified content.
 Overwrites an existing file, so use with care!
 Consider using the more granular tools \"Insert\" or \"Edit\" first."
- :function (lambda (path filename content)
-             (unless (and (stringp path) (stringp filename) (stringp content))
-               (error "PATH, FILENAME or CONTENT is not a string, cancelling action"))
-             (let ((full-path (expand-file-name filename path)))
-               (condition-case errdata
-                   (with-temp-buffer
-                     (insert content)
-                     (write-file full-path)
-                     (format "Created file %s in %s" filename path))
-                 (error "Error: Could not write file %s:\n%S" path errdata))))
+ :function #'gptel-agent--write-file
  :args (list '( :name "path"
                 :type "string"
                 :description "The directory where to create the file, \".\" is the current directory.")
@@ -1529,29 +1613,7 @@ Consider using the more granular tools \"Insert\" or \"Edit\" first."
   of globbing and grepping, use the \"task\" tool instead
 - You can call multiple tools in a single response.  It is always better to
   speculatively perform multiple searches in parallel if they are potentially useful."
- :function (lambda (pattern &optional path depth)
-             (when (string-empty-p pattern)
-               (error "Error: pattern must not be empty"))
-             (if path
-                 (unless (and (file-readable-p path) (file-directory-p path))
-                   (error "Error: path %s is not readable" path))
-               (setq path "."))
-             (unless (executable-find "tree")
-               (error "Error: Executable `tree` not found.  This tool cannot be used"))
-             (let ((full-path (expand-file-name path)))
-               (with-temp-buffer
-                 (let* ((args (list "-l" "-f" "-i" "-I" ".git"
-                                    "--sort=mtime" "--ignore-case"
-                                    "--prune" "-P" pattern full-path))
-                        (args (if (natnump depth)
-                                  (nconc args (list "-L" (number-to-string depth)))
-                                args))
-                        (exit-code (apply #'call-process "tree" nil t nil args)))
-                   (when (/= exit-code 0)
-                     (goto-char (point-min))
-                     (insert (format "Glob failed with exit code %d\n.STDOUT:\n\n"
-                                     exit-code))))
-                 (buffer-string))))
+ :function #'gptel-agent--glob
  :args '(( :name "pattern"
            :type string
            :description "Glob pattern to match, for example \"*.el\". Must not be empty.
