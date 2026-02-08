@@ -1185,13 +1185,13 @@ Exactly one item should have status \"in_progress\"."
 (defun gptel-agent--get-skill (skill &optional _args)
   "Return the details of the SKILL.
 
-This loads the body of the corresponding SKILL.
-When using this as a tool in gptel, make sure the known skills are
-added to the context window. `gptel-agent--skills-system-message' can
-be used to generate the known skills a string ready to be included to
-the context."
-  (pcase-let ((`(,skill-dir . ,skill-plist)
-               (alist-get skill gptel-agent--skills nil nil #'string-equal)))
+This loads the body of the corresponding SKILL.  When using this as a
+tool in gptel, make sure the known skills are added to the context
+window. `gptel-agent--skills-system-message' can be used to generate
+the known skills as string ready to be included to the context."
+  (let ((skill-dir
+         (car-safe
+          (alist-get skill gptel-agent--skills nil nil #'string-equal))))
     (if (not skill-dir)
         (format "Error: skill %s not found." skill)
       (let* ((skill-dir-expanded (expand-file-name skill-dir))
@@ -1772,7 +1772,6 @@ How to use:
            :optional t
            :description "Args relevant to the skill, for your future reference"))
  :category "gptel-agent"
- :confirm t
  :include t)
 
 (gptel-make-tool
