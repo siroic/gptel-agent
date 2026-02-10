@@ -163,11 +163,9 @@ Returns an alist of (agent-name . file-path)."
 ;;;###autoload
 (defun gptel-agent-update ()
   "Update agents."
-  ;; Load skills to be included in the system message
-  (gptel-agent--update-skills)
-
   (let ((agent-files (gptel-agent--update-agents))
-        (skills-str (gptel-agent--skills-system-message)))
+        ;; Load skills to be included in the system message
+        (skills-str (gptel-agent--skills-system-message (gptel-agent--update-skills))))
     ;; reload agents with template expansion
     (dolist (agent-entry gptel-agent--agents)
       (let* ((name (car agent-entry))
@@ -264,15 +262,9 @@ Signals an error if:
             ;; Requested only metadata but none exists -> return empty plist (nil)
             nil
           ;; Return plist with :system key containing entire file content
-          (let ((file-content (buffer-string)))
-            (if templates
-                (progn                    ;Apply template substitutions
-                  (gptel-agent--expand-templates (point-min) templates)
-                  ;; Extract the expanded body text
-                  (list :system (buffer-substring-no-properties (point-min) (point-max))))
-              ;; Return plist with system content as-is
-              (list :system file-content))))
-
+          (when templates ;Apply template substitutions
+            (gptel-agent--expand-templates (point-min) templates))
+          (list :system (buffer-substring-no-properties (point-min) (point-max))))
       ;; Move past opening delimiter
       (forward-line 1)
       (let ((frontmatter-start (point)))
@@ -363,15 +355,9 @@ Signals an error if:
               ;; Requested only metadata but none exists -> return empty plist (nil)
               nil
             ;; Return body as :system, applying templates only when metadata-only is nil
-            (let ((file-content (buffer-string)))
-              (if templates
-                  (progn                  ;Apply template substitutions
-                    (gptel-agent--expand-templates (point-min) templates)
-                    ;; Extract the expanded body text
-                    (list :system (buffer-substring-no-properties (point-min) (point-max))))
-                ;; Return plist with system content as-is
-                (list :system file-content))))
-
+            (when templates ;Apply template substitutions
+              (gptel-agent--expand-templates (point-min) templates))
+            (list :system (buffer-substring-no-properties (point-min) (point-max))))
         ;; Extract properties as an alist
         (let* ((props-alist (org-entry-properties (point-min) 'standard))
                (props-plist nil)
@@ -459,8 +445,14 @@ of the corresponding SKILL.md as a plist.")
                    finally return (nconc (nreverse absolute-dirs) (nreverse relative-dirs))))
   gptel-agent--skills)
 
-(defun gptel-agent--skills-system-message ()
-  "Returns the message describing the list of known skills."
+(defun gptel-agent--skills-system-message (agent-skills)
+  "Parse AGENT-SKILLS and return the message describing known skills.
+
+Meant to be used as a template (see `gptel-agent-read-file').
+
+AGENT-SKILLS is a alist of skill names and associated plist as value
+(See `gptel-agent--skills'). The plist is expected to have
+:description as a key."
   ;; Copied from opencode
   ;; (https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/tool/skill.ts)
   (concat "Load a skill to get detailed instructions for a specific task."
@@ -474,7 +466,7 @@ of the corresponding SKILL.md as a plist.")
   </skill>"
                                (car skill-def)
                                (plist-get (cddr skill-def) :description)))
-                     gptel-agent--skills "\n")
+                     agent-skills "\n")
           "\n</available_skills>"))
 
 ;;; Commands
