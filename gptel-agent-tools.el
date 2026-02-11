@@ -667,7 +667,7 @@ diagnostics."
 (defun gptel-agent--make-directory (parent name)
   "Create a directory NAME in PARENT directory.
 
-Creates the directory and any missing parent directories. If the
+Creates the directory and any missing parent directories.  If the
 directory already exists, this is a no-op and returns success.
 
 PARENT is the parent directory path,NAME is the name of the new
@@ -906,8 +906,8 @@ ARG-VALUES is the list of arguments for the tool call."
 (defun gptel-agent--write-file (path filename content)
   "Write CONTENT to FILENAME in PATH.
 
-PATH and FILENAME are expanded to create the full path. CONTENT is
-written to the file. Returns a success message string, or signals an
+PATH and FILENAME are expanded to create the full path.  CONTENT is
+written to the file.  Returns a success message string, or signals an
 error if writing fails.
 
 PATH, FILENAME, and CONTENT must all be strings."
@@ -1181,13 +1181,13 @@ Exactly one item should have status \"in_progress\"."
                                       'face 'font-lock-escape-face))))))))
   t)
 
-;;; Agentskill tool
+;;; Skill tool
 (defun gptel-agent--get-skill (skill &optional _args)
   "Return the details of the SKILL.
 
 This loads the body of the corresponding SKILL.  When using this as a
 tool in gptel, make sure the known skills are added to the context
-window. `gptel-agent--skills-system-message' can be used to generate
+window.  `gptel-agent--skills-system-message' can be used to generate
 the known skills as string ready to be included to the context."
   (let ((skill-dir
          (car-safe
@@ -1197,8 +1197,9 @@ the known skills as string ready to be included to the context."
       (let* ((skill-dir-expanded (expand-file-name skill-dir))
              (skill-files
               (mapcar
-               (lambda (full-path) (cons (file-relative-name full-path skill-dir-expanded)
-                                    full-path))
+               (lambda (full-path)
+                 (cons (file-relative-name full-path skill-dir-expanded)
+                       full-path))
                (directory-files-recursively skill-dir-expanded ".*")))
              (body (plist-get
                     (cdr (gptel-agent-read-file

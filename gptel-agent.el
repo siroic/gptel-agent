@@ -99,11 +99,11 @@ for gptel sub-agent definitions by `gptel-agent'."
                                     ".gemini/skills/")
   "Agent skill definition directories.
 
-Each directory listed here should contain agent skills. An agent
-skill is a directory with at least one file named \"SKILL.md\".
+Each directory listed here should contain agent skills.  An agent skill
+is a directory with at least one file named \"SKILL.md\".
 
-Relative paths are resolved against the current directory and
-also against the project root when searching for skills.
+Relative paths are resolved against the current directory and also
+against the project root when searching for skills.
 
 Relative directory locations will be take precedence over absolute
 locations. If multiple skills share the same name, the one in the
@@ -114,7 +114,17 @@ See https://agentskills.io for more details on agentskills."
   :group 'gptel-agent)
 
 ;;; State update
-(defvar gptel-agent--agents nil)
+(defvar gptel-agent--agents nil
+  "Known gptel agents.
+
+Alist mapping agent names to a plist of agent properties.")
+
+(defvar gptel-agent--skills nil
+  "Known skills alist.
+
+The key is the name.  The value is a cons (LOCATION . SKILL-PLIST).
+LOCATION is path to the skill's directory.  SKILL-PLIST is the header
+of the corresponding SKILL.md as a plist.")
 
 ;;;###autoload
 (defun gptel-agent-read-file (agent-file &optional templates metadata-only)
@@ -122,7 +132,7 @@ See https://agentskills.io for more details on agentskills."
 
 If TEMPLATES is non-nil, read the system-prompt with templates applied
 to them.  TEMPLATES should be an alist of (VAR-NAME . VAR-VALUE) for
-template expansion. Template variables in the format {{VAR-NAME}} in
+template expansion.  Template variables in the format {{VAR-NAME}} in
 the markdown body will be replaced with VAR-VALUE.
 
 If METADATA-ONLY is non-nil, only the header/metadata of the
@@ -159,6 +169,60 @@ Returns an alist of (agent-name . file-path)."
                 (push (cons name agent-file) agent-files))))
           gptel-agent-dirs)
     agent-files))
+
+(defun gptel-agent--update-skills ()
+  "Update the known skills list from `gptel-agent-skill-dirs'."
+  (setq gptel-agent--skills nil)
+  (mapc (lambda (dir)
+          (when (file-directory-p dir)
+            (dolist (skill-file (directory-files-recursively dir "SKILL\\.md"))
+              (pcase-let ((`(,name . ,skill-plist) ;loading only metadata
+                           (gptel-agent-read-file skill-file nil t)))
+                ;; validating skill definition
+                (if (plist-get skill-plist :description)
+                    (setf (alist-get name gptel-agent--skills nil nil #'string-equal)
+                          (cons (file-name-directory skill-file) skill-plist))
+                  (warn "Skill %s (at %s) does not have a description. Ignoring %s skill."
+                        name skill-file name))))))
+        ;; To preserve precedence, the list should be reversed and resolved
+        ;; relative names should be at the end.
+        (cl-loop for dir in gptel-agent-skill-dirs
+                 with project-root = (and-let* ((proj (project-current))
+                                                (root (project-root proj))
+                                                (_ (not (equal root default-directory))))
+                                       root)
+                 if (file-name-absolute-p dir)
+                 collect dir into absolute-dirs
+                 else
+                 collect (expand-file-name dir) into relative-dirs
+                 and when project-root
+                 collect (expand-file-name dir project-root) into relative-dirs
+                 finally return (nconc (nreverse absolute-dirs) (nreverse relative-dirs))))
+  gptel-agent--skills)
+
+(defun gptel-agent--skills-system-message (agent-skills)
+  "Parse AGENT-SKILLS and return the message describing known skills.
+
+Meant to be used as a template (see `gptel-agent-read-file').
+
+AGENT-SKILLS is a alist of skill names and associated plist as value
+ (See `gptel-agent--skills').  The plist is expected to have
+:description as a key."
+  ;; Copied from opencode
+  ;; (https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/tool/skill.ts)
+  (concat "Load a skill to get detailed instructions for a specific task."
+          "Skills provide specialized knowledge and step-by-step guidance."
+          "Use this when a task matches an available skill's description."
+          "\n<available_skills>\n"
+          (mapconcat (lambda (skill-def)
+                       (format "  <skill>
+    <name>%s</name>
+    <description>%s</description>
+  </skill>"
+                               (car skill-def)
+                               (plist-get (cddr skill-def) :description)))
+                     agent-skills "\n")
+          "\n</available_skills>"))
 
 ;;;###autoload
 (defun gptel-agent-update ()
@@ -259,12 +323,12 @@ Signals an error if:
     (if (not (looking-at-p "^---[ \t]*$"))
         ;; No frontmatter
         (if metadata-only
-            ;; Requested only metadata but none exists -> return empty plist (nil)
-            nil
+            nil  ; Requested only metadata but none exists -> return empty plist
           ;; Return plist with :system key containing entire file content
-          (when templates ;Apply template substitutions
+          (when templates               ;Apply template substitutions
             (gptel-agent--expand-templates (point-min) templates))
-          (list :system (buffer-substring-no-properties (point-min) (point-max))))
+          (list :system (buffer-substring-no-properties
+                         (point-min) (point-max))))
       ;; Move past opening delimiter
       (forward-line 1)
       (let ((frontmatter-start (point)))
@@ -275,7 +339,8 @@ Signals an error if:
 
         ;; Extract frontmatter text (from start to beginning of closing delimiter)
         (let* ((frontmatter-end (match-beginning 0))
-               (frontmatter-str (buffer-substring-no-properties frontmatter-start frontmatter-end))
+               (frontmatter-str (buffer-substring-no-properties
+                                 frontmatter-start frontmatter-end))
                (body-start (1+ (match-end 0))))
 
           ;; Parse YAML frontmatter
@@ -338,7 +403,7 @@ Returns a plist with:
   after the property block (with templates expanded)
 
 Signals an error if:
-- A key in the property block is not allowed by the validator"
+- A key in the property block is not allowed by the validator."
   (unless validator
     (setq validator #'gptel-agent-validator-default))
 
@@ -352,12 +417,12 @@ Signals an error if:
       (if (not prop-range)
           ;; No property block
           (if metadata-only
-              ;; Requested only metadata but none exists -> return empty plist (nil)
-              nil
+              nil ; Requested only metadata but none exists -> return empty plist (nil)
             ;; Return body as :system, applying templates only when metadata-only is nil
-            (when templates ;Apply template substitutions
+            (when templates             ;Apply template substitutions
               (gptel-agent--expand-templates (point-min) templates))
-            (list :system (buffer-substring-no-properties (point-min) (point-max))))
+            (list :system (buffer-substring-no-properties
+                           (point-min) (point-max))))
         ;; Extract properties as an alist
         (let* ((props-alist (org-entry-properties (point-min) 'standard))
                (props-plist nil)
@@ -405,69 +470,6 @@ Signals an error if:
             (let ((body-text (buffer-substring-no-properties
                                   body-start (point-max))))
               (plist-put props-plist :system body-text))))))))
-
-;;; Agentskill loading and processing
-
-(defvar gptel-agent--skills nil
-  "Known skills alist.
-
-The key is the name. The value is a cons (LOCATION . SKILL-PLIST).
-LOCATION is path to the skill's directory. SKILL-PLIST is the header
-of the corresponding SKILL.md as a plist.")
-
-(defun gptel-agent--update-skills ()
-  "Update the known skills list from `gptel-agent-skill-dirs'."
-  (setq gptel-agent--skills nil)
-  (mapcar (lambda (dir)
-            (when (file-directory-p dir)
-              (dolist (skill-file (directory-files-recursively dir "SKILL\\.md"))
-                (pcase-let ((`(,name . ,skill-plist) ;loading only metadata
-                             (gptel-agent-read-file skill-file nil t)))
-                  ;; validating skill definition
-                  (if (plist-get skill-plist :description)
-                      (setf (alist-get name gptel-agent--skills nil nil #'string-equal)
-                            (cons (file-name-directory skill-file) skill-plist))
-                    (warn "Skill %s (at %s) does not have a description. Ignoring %s skill."
-                          name skill-file name))))))
-          ;; To preserve precedence, the list should be reversed and resolved
-          ;; relative names should be at the end.
-          (cl-loop for dir in gptel-agent-skill-dirs
-                   with project-root = (and-let* ((proj (project-current))
-                                                  (root (project-root proj))
-                                                  (_ (not (equal root default-directory))))
-                                         root)
-                   if (file-name-absolute-p dir)
-                   collect dir into absolute-dirs
-                   else
-                   collect (expand-file-name dir) into relative-dirs
-                   and when project-root
-                   collect (expand-file-name dir project-root) into relative-dirs
-                   finally return (nconc (nreverse absolute-dirs) (nreverse relative-dirs))))
-  gptel-agent--skills)
-
-(defun gptel-agent--skills-system-message (agent-skills)
-  "Parse AGENT-SKILLS and return the message describing known skills.
-
-Meant to be used as a template (see `gptel-agent-read-file').
-
-AGENT-SKILLS is a alist of skill names and associated plist as value
-(See `gptel-agent--skills'). The plist is expected to have
-:description as a key."
-  ;; Copied from opencode
-  ;; (https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/tool/skill.ts)
-  (concat "Load a skill to get detailed instructions for a specific task."
-          "Skills provide specialized knowledge and step-by-step guidance."
-          "Use this when a task matches an available skill's description."
-          "\n<available_skills>\n"
-          (mapconcat (lambda (skill-def)
-                       (format "  <skill>
-    <name>%s</name>
-    <description>%s</description>
-  </skill>"
-                               (car skill-def)
-                               (plist-get (cddr skill-def) :description)))
-                     agent-skills "\n")
-          "\n</available_skills>"))
 
 ;;; Commands
 
