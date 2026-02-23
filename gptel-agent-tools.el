@@ -48,9 +48,11 @@
 (eval-when-compile (require 'cl-lib))
 
 (declare-function org-escape-code-in-region "org-src")
+(declare-function gptel-agent-read-file "gptel-agent")
 
 (defvar url-http-end-of-headers)
 (defvar gptel-agent--agents)
+(defvar gptel-agent--skills)
 (defconst gptel-agent--hrule
   (propertize "\n" 'face '(:inherit shadow :underline t :extend t)))
 
@@ -380,6 +382,8 @@ COUNT is the number of results to return (default 5)."
   "Parse YouTube caption XML-STRING and return DOM."
   (with-temp-buffer
     (insert xml-string)
+    (set-buffer-multibyte t)
+    (decode-coding-region (point-min) (point-max) 'utf-8)
     (goto-char (point-min))
     ;; Clean up the XML
     (dolist (reps '(("\n" . " ")
@@ -665,7 +669,7 @@ diagnostics."
 (defun gptel-agent--make-directory (parent name)
   "Create a directory NAME in PARENT directory.
 
-Creates the directory and any missing parent directories. If the
+Creates the directory and any missing parent directories.  If the
 directory already exists, this is a no-op and returns success.
 
 PARENT is the parent directory path,NAME is the name of the new
@@ -904,8 +908,8 @@ ARG-VALUES is the list of arguments for the tool call."
 (defun gptel-agent--write-file (path filename content)
   "Write CONTENT to FILENAME in PATH.
 
-PATH and FILENAME are expanded to create the full path. CONTENT is
-written to the file. Returns a success message string, or signals an
+PATH and FILENAME are expanded to create the full path.  CONTENT is
+written to the file.  Returns a success message string, or signals an
 error if writing fails.
 
 PATH, FILENAME, and CONTENT must all be strings."
@@ -1177,6 +1181,45 @@ Exactly one item should have status \"in_progress\"."
                           (propertize (concat "Task: " in-progress)
                                       'face 'font-lock-escape-face))))))))
   t)
+
+;;; Skill tool
+(defun gptel-agent--get-skill (skill &optional _args)
+  "Return the details of the SKILL.
+
+This loads the body of the corresponding SKILL.  When using this as a
+tool in gptel, make sure the known skills are added to the context
+window.  `gptel-agent--skills-system-message' can be used to generate
+the known skills as string ready to be included to the context."
+  (let ((skill-dir
+         (car-safe
+          (alist-get skill gptel-agent--skills nil nil #'string-equal))))
+    (if (not skill-dir)
+        (format "Error: skill %s not found." skill)
+      (let* ((skill-dir-expanded (expand-file-name skill-dir))
+             (skill-files
+              (mapcar
+               (lambda (full-path)
+                 (cons (file-relative-name full-path skill-dir-expanded)
+                       full-path))
+               (directory-files-recursively skill-dir-expanded ".*")))
+             (body (plist-get
+                    (cdr (gptel-agent-read-file
+                          (expand-file-name "SKILL.md" skill-dir)))
+                    :system)))
+        (if body
+            (let (start)
+              (with-temp-buffer
+                (insert "## Skill: " skill
+                        "\n- base dir: " skill-dir-expanded "\n")
+                (setq start (point))
+                (insert body)
+                (pcase-dolist (`(,rel-path . ,full-path) skill-files)
+                  (unless (string-match-p "SKILL\\.md" rel-path)
+                    (goto-char start)
+                    (while (search-forward-regexp (regexp-quote rel-path) nil t)
+                      (replace-match full-path t t))))
+                (buffer-string)))
+          (format "Could not load body of skill %s" skill))))))
 
 ;;; Task tool (sub-agent)
 (defvar gptel-agent-request--handlers
@@ -1709,6 +1752,36 @@ Only one todo can be `in_progress` at a time."
         ( :type string :minLength 1
           :description "Present continuous form shown during execution (e.g., 'Running tests')")))))
  :category "gptel-agent")
+
+(gptel-make-tool
+ :name "Skill"
+ :description "Load a skill into the current conversation.
+
+Each skill provides guidance on how to execute a specific task.
+You can invoke a skill with optional args, the args are for your future reference only.
+
+When to use:
+- When a skill is relevant, you must invoke this tool IMMEDIATELY
+- This is a BLOCKING REQUIREMENT: invoke the relevant Skill tool before generating any other response about the task
+- Only use skills listed in your prompt
+- Do not invoke a skill that is already loaded.
+
+How to use:
+- Invoke with the skill name and optional args.  The args are for your reference only
+- Examples:
+    - `skill: \"pdf\"` - invoke the pdf skill
+    - `skill: \"commit\", args: \"-m 'Fix bug'\"` - invoke with arguments
+    - `skill: \"review-pr\", args: \"123\"` - invoke with arguments"
+ :function #'gptel-agent--get-skill
+ :args '(( :name "skill"
+           :type string
+           :description "Name of the skill, chosen from the list of available skills")
+         ( :name "args"
+           :type string
+           :optional t
+           :description "Args relevant to the skill, for your future reference"))
+ :category "gptel-agent"
+ :include t)
 
 (gptel-make-tool
  :name "Agent"
