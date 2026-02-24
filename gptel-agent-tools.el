@@ -1139,9 +1139,10 @@ Exactly one item should have status \"in_progress\"."
                                          "C-c g t" #'gptel-agent-toggle-todos))
           (plist-put
            info :post              ; Don't use push, see note in gptel-anthropic
-           (cons (lambda (&rest _)      ; Clean up header line after tasks are done
+           (cons (lambda (&rest _)      ; Clean up header line and todo overlay
                    (when (and gptel-mode gptel-use-header-line header-line-format)
-                     (setf (nth 2 header-line-format) gptel--header-line-info)))
+                     (setf (nth 2 header-line-format) gptel--header-line-info))
+                   (when (overlayp todo-ov) (delete-overlay todo-ov)))
                  (plist-get info :post))))
         (let* ((formatted-todos         ; Format the todo list
                 (mapconcat
@@ -1804,6 +1805,19 @@ Should include exactly what information the agent should return."))
  :async t
  :confirm t
  :include t)
+
+;;; Abort cleanup
+(defun gptel-agent--abort-cleanup ()
+  "Clean up gptel-agent overlays when a request is aborted.
+
+Removes delegation task overlays and todo overlays from the
+current buffer."
+  (dolist (ov (overlays-in (point-min) (point-max)))
+    (when (or (overlay-get ov 'gptel-agent)
+              (overlay-get ov 'gptel-agent--todos))
+      (delete-overlay ov))))
+
+(add-hook 'gptel-abort-hook #'gptel-agent--abort-cleanup)
 
 (provide 'gptel-agent-tools)
 ;;; gptel-agent-tools.el ends here
