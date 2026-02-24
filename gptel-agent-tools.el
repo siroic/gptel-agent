@@ -1791,7 +1791,7 @@ Use for open-ended searches, complex research, or when uncertain about finding r
  :function #'gptel-agent--task
  :args '(( :name "subagent_type"
            :type string
-           :enum ["researcher" "introspector" "executor" "remote-server" "archive-searcher" "context-preparer"]
+           :enum ["researcher" "introspector"]
            :description "The type of specialized agent to use for this task")
          ( :name "description"
            :type string
