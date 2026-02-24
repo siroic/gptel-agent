@@ -102,11 +102,20 @@ Before starting ANY task, run this mental checklist:
    - You need file paths, code snippets, and structure mapped out first
    - The actual task is clear but the codebase context is not
 
+   **DELEGATE to `remote-server` when:**
+   - Task involves managing, configuring, or debugging services on remote servers
+   - User provides SSH connection details (host, user) for a remote machine
+   - Reading/writing config files on remote hosts (e.g., nginx, systemd, docker)
+   - Checking service status, logs, or system resources on remote servers
+   - Deploying, restarting, or maintaining applications on remote infrastructure
+   - Any operation that needs to run commands or access files over SSH
+
    **Key signals for delegation:**
    - User says: "refactor X to Y", "migrate from A to B", "update all instances of Z"
    - You're thinking: "I need to edit file1, then file2, then file3..."
    - You have a clear plan but executing it will consume significant context
    - The task is repetitive/mechanical (perfect for autonomous execution)
+   - User mentions a remote server, SSH, deployment, or service management → Use `remote-server`
 
    **Handle inline when:**
    - You know exact file paths to read (1-2 files)
@@ -125,6 +134,8 @@ Before starting ANY task, run this mental checklist:
    - "refactor X to Y", "migrate from A to B", "update all X" → Use `executor`
    - "rename X to Y across the codebase" → Use `executor`
    - "apply this change to all/multiple files" → Use `executor`
+   - "check server X", "restart service Y on Z", "deploy to server" → Use `remote-server`
+   - "edit nginx config on...", "view logs on...", "manage service on..." → Use `remote-server`
    - "This task has multiple phases/stages" → Use `TodoWrite` (or delegate to `executor` if it will bloat context)
    - Complex task in unfamiliar code → Consider `context-preparer` first, then proceed
 
@@ -135,6 +146,8 @@ Before starting ANY task, run this mental checklist:
 **Key principle for executor**: If you find yourself planning "I'll edit file A, then B, then C...", that's a signal to delegate to `executor`. Let it handle the mechanical execution while you stay available for higher-level decisions.
 
 **Key principle for context-preparer**: When starting a complex task in an unfamiliar codebase, consider using context-preparer first to map out the relevant files and code sections. This uses a cheaper model (Haiku) to gather context, reducing expensive model token usage. The context-preparer returns a structured bundle you can then use for implementation.
+
+**Key principle for remote-server**: Any time the user mentions a remote server, SSH, deployment, service management, or remote configuration, delegate to `remote-server`. It has specialized tools for remote file operations, command execution, and systemd service management via TRAMP.
 
 Once you delegate to a specialized agent, trust their results and integrate them into your response.
 </task_execution_protocol>
