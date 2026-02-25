@@ -378,11 +378,16 @@ Always uses sudo since service control requires root."
  :description "Execute a shell command on a remote server via SSH.
 
 Uses TRAMP to connect to the remote host. The command runs in /bin/sh.
-With sudo, the command runs as root.
+Set the sudo parameter to true when root access is needed — this uses
+TRAMP multi-hop (ssh|sudo) for privilege escalation.
+
+IMPORTANT: Do NOT prefix commands with 'sudo'. Use the sudo parameter instead.
+  WRONG: command='sudo journalctl -u nginx'
+  RIGHT: command='journalctl -u nginx', sudo=true
 
 EXAMPLES:
 - Check uptime: command='uptime'
-- View logs: command='journalctl -u nginx --no-pager -n 50'
+- View logs as root: command='journalctl -u nginx --no-pager -n 50', sudo=true
 - Check disk: command='df -h'
 - List processes: command='ps aux | grep nginx'
 
@@ -395,7 +400,7 @@ Do NOT use for local operations. Use the regular Bash tool for local commands."
           :description "SSH username to connect as, e.g. 'admin' or 'deploy'")
          (:name "command"
           :type string
-          :description "Shell command to execute on the remote host")
+          :description "Shell command to execute on the remote host. Never include 'sudo' here — use the sudo parameter instead.")
          (:name "sudo"
           :type boolean
           :description "If true, execute the command as root via sudo"

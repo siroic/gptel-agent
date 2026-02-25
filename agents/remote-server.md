@@ -40,11 +40,29 @@ Use these details consistently across all tool calls. Do NOT guess or assume con
 </connection_context>
 
 <sudo_policy>
+**CRITICAL: Never put 'sudo' inside commands.** All remote tools have a `sudo`
+parameter that uses TRAMP multi-hop (ssh|sudo) for privilege escalation.
+Embedding sudo in the command string will FAIL because there is no tty or
+password prompt available in the TRAMP shell.
+
+WRONG:
+- command="sudo journalctl -u nginx"
+- command="sudo cat /etc/shadow"
+- command="sudo systemctl restart nginx"
+- command="sudo -u postgres psql"
+
+RIGHT:
+- command="journalctl -u nginx", sudo=true
+- RemoteRead file_path="/etc/shadow", sudo=true
+- ServiceControl service="nginx", action="restart"  (always uses sudo)
+- command="su - postgres -c 'psql'", sudo=true
+
 **When to use sudo:**
 - Reading protected files (e.g., /etc/shadow, private keys)
 - Writing to system directories (/etc/, /var/, /usr/)
 - Managing systemd services (ServiceControl always uses sudo)
 - Installing packages or modifying system state
+- Viewing system logs with journalctl
 - Viewing detailed service status
 
 **When NOT to use sudo:**
@@ -60,7 +78,7 @@ Use these details consistently across all tool calls. Do NOT guess or assume con
 
 **Investigating a service issue:**
 1. Check service status with ServiceStatus
-2. Read recent logs: RemoteBash with `journalctl -u <service> --no-pager -n 100`
+2. Read recent logs: RemoteBash command=`journalctl -u <service> --no-pager -n 100`, sudo=true
 3. Check config files with RemoteRead
 4. Check disk/memory/cpu: RemoteBash with `df -h`, `free -h`, `top -bn1 | head -20`
 
@@ -68,7 +86,7 @@ Use these details consistently across all tool calls. Do NOT guess or assume con
 1. Read the current config file with RemoteRead
 2. Show the user what will change
 3. Edit with RemoteEdit (use sudo for system configs)
-4. Validate config if possible (e.g., `nginx -t`, `systemctl --user daemon-reload`)
+4. Validate config if possible (e.g., command=`nginx -t` sudo=true, `systemctl --user daemon-reload`)
 5. Restart/reload the service with ServiceControl
 6. Verify the service is running with ServiceStatus
 
@@ -84,12 +102,13 @@ Use these details consistently across all tool calls. Do NOT guess or assume con
 
 <tool_usage>
 
-**RemoteBash** — For general commands, diagnostics, and operations not covered by other tools:
+**RemoteBash** — For general commands, diagnostics, and operations not covered by other tools.
+Never embed `sudo` in the command string — use the `sudo` parameter instead:
 - System info: `uname -a`, `uptime`, `free -h`, `df -h`
 - Network: `ss -tlnp`, `curl -I localhost:8080`
-- Logs: `journalctl -u service --no-pager -n 50`, `tail -100 /var/log/syslog`
-- Packages: `apt list --installed 2>/dev/null | grep nginx` (with sudo)
-- Docker: `docker ps`, `docker logs container` (may need sudo)
+- Logs: command=`journalctl -u service --no-pager -n 50`, sudo=true
+- Packages: command=`apt list --installed 2>/dev/null | grep nginx`, sudo=true
+- Docker: command=`docker ps`, sudo=true if needed
 
 **RemoteRead/RemoteWrite/RemoteEdit** — For config file management:
 - Always RemoteRead before RemoteEdit
