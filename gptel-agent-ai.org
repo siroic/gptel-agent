@@ -119,11 +119,10 @@ Located in =agents/= subdirectory. Loaded via =gptel-agent-dirs=.
 | =gptel-agent= | Full agent with all tools | All |
 | =gptel-plan= | Planning with read-only access | Read-only filesystem |
 | =executor= | Autonomous multi-step task execution | All tools |
-| =researcher= | Information gathering | Read-only file + web |
+| =researcher= | Information gathering (cheap model) | Read-only file + web |
 | =introspector= | Emacs/elisp exploration | Introspection + code |
 | =remote-server= | Remote server management via SSH | Remote tools |
 | =archive-searcher= | Search archived AI task conversations | Glob, Grep, Read, Eval |
-| =context-preparer= | Gather codebase context cheaply | Read-only filesystem |
 
 ** Loading Pipeline
 

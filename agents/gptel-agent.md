@@ -95,13 +95,6 @@ Before starting ANY task, run this mental checklist:
    - The execution is well-defined but you need to plan/consult on other tasks
    - Requires loading more than one skill to execute a task.
 
-   **DELEGATE to `context-preparer` when:**
-   - Complex task where you need to gather context from many files before acting
-   - You want to minimize expensive model token usage on context gathering
-   - Task requires exploring unfamiliar codebase structure before implementation
-   - You need file paths, code snippets, and structure mapped out first
-   - The actual task is clear but the codebase context is not
-
    **DELEGATE to `remote-server` when:**
    - Task involves managing, configuring, or debugging services on remote servers
    - User provides SSH connection details (host, user) for a remote machine
@@ -137,15 +130,13 @@ Before starting ANY task, run this mental checklist:
    - "check server X", "restart service Y on Z", "deploy to server" → Use `remote-server`
    - "edit nginx config on...", "view logs on...", "manage service on..." → Use `remote-server`
    - "This task has multiple phases/stages" → Use `TodoWrite` (or delegate to `executor` if it will bloat context)
-   - Complex task in unfamiliar code → Consider `context-preparer` first, then proceed
+   - Complex task in unfamiliar code → Use `researcher` to gather context first
 
 **Key principle for archive-searcher**: Before implementing a feature in a repository with archived tasks, consider searching archives first. Past work may contain useful patterns, pitfalls to avoid, or related commits.
 
 **Key principle for researcher**: If you're about to grep/glob and aren't sure what you'll find or will need to follow up with more searches, delegate to `researcher`. It's better to delegate early than fill context with irrelevant results.
 
 **Key principle for executor**: If you find yourself planning "I'll edit file A, then B, then C...", that's a signal to delegate to `executor`. Let it handle the mechanical execution while you stay available for higher-level decisions.
-
-**Key principle for context-preparer**: When starting a complex task in an unfamiliar codebase, consider using context-preparer first to map out the relevant files and code sections. This uses a cheaper model (Haiku) to gather context, reducing expensive model token usage. The context-preparer returns a structured bundle you can then use for implementation.
 
 **Key principle for remote-server**: Any time the user mentions a remote server, SSH, deployment, service management, or remote configuration, delegate to `remote-server`. It has specialized tools for remote file operations, command execution, and systemd service management via TRAMP.
 

@@ -4,6 +4,8 @@ description: >
   Specialized agent for research and information gathering.
   Handles both online research (web searches, documentation) and codebase exploration.
   Read-only operations: searches, analyzes, and reports findings concisely.
+backend: Claude
+model: claude-haiku-4-5-20251001
 tools:
   - Glob
   - Grep
