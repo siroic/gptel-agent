@@ -1,0 +1,272 @@
+#+TITLE: gptel-agent — AI Development Context
+#+DESCRIPTION: Reference document for AI-assisted development of gptel-agent
+
+* Overview
+
+gptel-agent is an agentic layer built on top of gptel. It provides tool
+implementations, sub-agent delegation, agent definition files, and a skill
+system. It extends gptel via its preset system — agents ARE presets with
+tools and custom system prompts.
+
+** Repository
+
+- Location: =quelpa/build/gptel-agent/=
+- Depends on: gptel (=quelpa/build/gptel/=)
+- See [[file:../gptel/gptel-ai.org]] for gptel core context
+
+** What gptel-agent Extends
+
+| Component | Extension |
+|-----------+-----------|
+| Presets | New presets: =gptel-agent=, =gptel-plan=, custom agents |
+| Tools | 20+ tools (filesystem, web, remote, introspection, delegation) |
+| Tool Preview | Custom overlay-based preview and confirmation UI |
+| FSM Handlers | Custom handlers for sub-agent indication (=gptel-agent-request--handlers=) |
+| Mode UI | Header-line mode switching (agent ↔ plan) |
+
+** What gptel-agent Does NOT Override
+
+- Core LLM request mechanism (=gptel-request=)
+- Backend/model selection
+- API parameter handling
+- Message encoding/streaming
+- Conversation history management
+
+* Architecture
+
+** Agent = Preset + Tools + System Prompt
+
+#+begin_example
+Agent Definition File (Markdown/Org)
+  → gptel-agent-read-file (parse frontmatter + body)
+  → gptel-make-preset (register as gptel preset)
+  → gptel--apply-preset (activate in buffer)
+  → LLM receives: system prompt + tool specs + user messages
+#+end_example
+
+** Agent Definition Format
+
+Agents are defined in Markdown files with YAML frontmatter:
+
+#+begin_example
+---
+name: my-agent
+description: Does specific things
+tools:
+  - Read
+  - Write
+  - Bash
+model: claude-sonnet-4-20250514
+max-tokens: 8192
+---
+
+System prompt text goes here as the body.
+
+{{AGENTS}} — expanded to list of available agents
+{{SKILLS}} — expanded to list of available skills
+#+end_example
+
+Key frontmatter properties:
+- =name=, =description= — identity (description is mandatory)
+- =tools= — list of tool names or categories
+- =backend=, =model=, =max-tokens= — LLM config
+- =pre=, =post= — elisp functions run before/after
+- =parents= — inherit from other agents
+- =include-original-prompt= — sub-agents: include parent task context
+
+** Two-Mode Operation
+
+1. *Agent Mode* (=gptel-agent= preset) — full tool access, interactive
+2. *Plan Mode* (=gptel-plan= preset) — read-only filesystem, planning focus
+
+Switched via header-line buttons in agent buffers.
+
+** Sub-Agent Delegation
+
+- Parent agent calls =Agent= tool with: =type=, =description=, =prompt=
+- Sub-agent runs in isolated context (no shared history)
+- Task overlay shows progress (Waiting → Calling Tools → Complete)
+- Result returned as text to parent agent
+- Each sub-agent type has its own agent definition file
+
+** Custom FSM Handlers
+
+#+begin_src elisp
+(defvar gptel-agent-request--handlers
+  `((WAIT ,#'gptel-agent--indicate-wait
+          ,#'gptel--handle-wait)
+    (TOOL ,#'gptel-agent--indicate-tool-call
+          ,#'gptel--handle-tool-use)))
+#+end_src
+
+These provide visual feedback (overlay updates) during tool execution.
+
+* Source Files
+
+| File | Lines | Purpose |
+|------+-------+---------|
+| =gptel-agent.el= | main | Agent framework: definitions, presets, parser, template expansion |
+| =gptel-agent-tools.el= | main | Core tools: filesystem, web, system, delegation (Agent, TodoWrite, Skill) |
+| =gptel-agent-tools-remote.el= | ext | Remote server tools via TRAMP SSH |
+| =gptel-agent-tools-introspection.el= | ext | Emacs introspection: symbol/source lookup, manual, eval |
+
+* Agent Definitions
+
+Located in =agents/= subdirectory. Loaded via =gptel-agent-dirs=.
+
+| Agent | Purpose | Tool Access |
+|-------+---------+-------------|
+| =gptel-agent= | Full agent with all tools | All |
+| =gptel-plan= | Planning with read-only access | Read-only filesystem |
+| =executor= | Autonomous multi-step task execution | All tools |
+| =researcher= | Information gathering | Read-only file + web |
+| =introspector= | Emacs/elisp exploration | Introspection + code |
+| =remote-server= | Remote server management via SSH | Remote tools |
+| =archive-searcher= | Search archived AI task conversations | Glob, Grep, Read, Eval |
+| =context-preparer= | Gather codebase context cheaply | Read-only filesystem |
+
+** Loading Pipeline
+
+1. =gptel-agent-dirs= specifies directories to scan
+2. =gptel-agent--update-agents= discovers agent files
+3. =gptel-agent-read-file= parses each file (frontmatter + body)
+4. Template expansion (={{AGENTS}}=, ={{SKILLS}}=)
+5. =gptel-make-preset= registers each agent as a gptel preset
+6. Tool enum updated to include only tools referenced by agents
+
+* Tool System
+
+** Categories and Tools
+
+*** Category: gptel-agent (core tools)
+
+| Tool | Async | Confirm | Purpose |
+|------+-------+---------+---------|
+| =Read= | no | no | Read file contents with optional line range |
+| =Write= | no | yes | Create/overwrite file |
+| =Edit= | no | yes | Find-and-replace in file |
+| =Insert= | no | yes | Insert text at line number |
+| =Glob= | no | no | Find files by name pattern |
+| =Grep= | no | no | Search file contents with regex |
+| =Bash= | yes | yes | Execute shell commands |
+| =Eval= | no | no | Evaluate elisp expression |
+| =Diagnostics= | no | no | Get buffer diagnostics (flymake/flycheck) |
+| =Agent= | yes | no | Delegate to sub-agent |
+| =TodoWrite= | no | no | Create/update task list |
+| =Skill= | no | no | Load skill instructions |
+| =WebSearch= | yes | no | Search the web |
+| =WebFetch= | yes | no | Fetch and extract from URL |
+
+*** Category: remote
+
+| Tool | Async | Confirm | Purpose |
+|------+-------+---------+---------|
+| =RemoteBash= | yes | yes | Shell command on remote host |
+| =RemoteRead= | no | no | Read remote file |
+| =RemoteWrite= | no | yes | Write remote file |
+| =RemoteEdit= | no | yes | Edit remote file |
+| =RemoteGlob= | no | no | Find remote files |
+| =RemoteGrep= | no | no | Search remote file contents |
+| =ServiceStatus= | no | no | Check systemd service |
+| =ServiceControl= | no | yes | Start/stop/restart service |
+
+See [[file:../gptel/gptel-remote-ai.org]] for detailed remote tools documentation.
+
+*** Category: introspection
+
+| Tool | Async | Confirm | Purpose |
+|------+-------+---------+---------|
+| =DescribeSymbol= | no | no | Describe elisp symbol |
+| =FindSource= | no | no | Find symbol source code |
+| =LookupManual= | no | no | Search Emacs manual |
+| =InfoNode= | no | no | Read Info documentation node |
+| =ListFeatures= | no | no | List loaded Emacs features |
+| =LibrarySource= | no | no | Read library source file |
+| =EvalExpression= | no | no | Evaluate elisp (introspection context) |
+
+** Preview System
+
+Tools with side effects register preview functions via =gptel--tool-preview-alist=:
+- Overlays show proposed action at point
+- Syntax-highlighted content (code, diffs)
+- Navigation: =n=/=p= keys, toggle with =<tab>=
+- Confirm: =RET=, reject: =q=
+
+** Async Tool Pattern
+
+#+begin_src elisp
+;; Async tools receive a callback as last argument
+(defun my-async-tool (arg1 arg2 callback)
+  (do-something-async arg1 arg2
+    (lambda (result)
+      (funcall callback (format "Result: %s" result)))))
+#+end_src
+
+* Skill System
+
+- =gptel-agent-skill-dirs= specifies directories for skill files
+- Skills are instruction documents loaded on demand via =Skill= tool
+- Referenced by name in agent system prompts
+- Skills provide task-specific guidance without being full agents
+
+* Key Data Structures
+
+** Global Variables
+
+| Variable | Type | Purpose |
+|----------+------+---------|
+| =gptel-agent--agents= | alist | Known agents: =(name . plist)= |
+| =gptel-agent--skills= | alist | Known skills: =(name . (dir . plist))= |
+| =gptel-agent--todos= | list | Current task list (buffer-local) |
+
+** Customization
+
+| Variable | Type | Purpose |
+|----------+------+---------|
+| =gptel-agent-dirs= | (repeat directory) | Where to find agent definitions |
+| =gptel-agent-skill-dirs= | (repeat directory) | Where to find skill definitions |
+
+** Agent Plist Format
+
+#+begin_src elisp
+(:name "agent-name"
+ :description "Brief description"
+ :tools ["tool1" "tool2"]
+ :system "System prompt text"
+ :backend BACKEND-STRUCT
+ :model "model-name"
+ :max-tokens 8192
+ :pre (lambda () ...)
+ :post (lambda () ...))
+#+end_src
+
+** Tool Call Info Plist (FSM context)
+
+#+begin_src elisp
+(:position POINT
+ :context OVERLAY           ; agent task overlay
+ :tool-use [calls...]
+ :tracking-marker MARKER
+ :error ERROR-DATA
+ :transformer FUNC          ; result transformer
+ :post (callbacks...))
+#+end_src
+
+* Error Handling
+
+| Scenario | Mechanism | Recovery |
+|----------+-----------+---------|
+| File not readable | =error= signal | Caught by gptel, shown as message |
+| Tool timeout | =run-at-time= + abort | Callback notifies LLM of failure |
+| Process exit non-zero | Exit code check | Error with stderr returned to LLM |
+| Malformed frontmatter | =error= in parser | Agent file ignored |
+| User abort (=C-c C-c=) | =gptel-abort-hook= | Overlays removed, FSM aborted |
+| Missing tool | Excluded from list | Agent works with remaining tools |
+
+* Feature-Specific Documents
+
+| Document | Feature | Status |
+|----------+---------+--------|
+| [[file:../gptel/gptel-remote-ai.org]] | Remote server tools | exists |
+| [[file:../gptel/gptel-archive-ai.org]] | Archive searcher agent context | exists |
+| [[file:../gptel/gptel-ai.org]] | gptel core (parent package) | exists |
