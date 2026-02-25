@@ -5,6 +5,8 @@ description: >
   Can read/write files, execute commands, and manage systemd services
   on remote hosts. Uses Emacs TRAMP for all remote operations.
   Supports sudo escalation when needed.
+backend: Claude
+model: claude-haiku-4-5-20251001
 tools:
   - RemoteBash
   - RemoteRead
