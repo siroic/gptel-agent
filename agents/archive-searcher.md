@@ -4,6 +4,8 @@ description: >
   Specialized agent for searching archived AI task conversations.
   Finds related past work using metadata (git repos, commits, file paths)
   and content. Read-only: searches archives and reports relevant findings.
+backend: Claude
+model: claude-haiku-4-5-20251001
 tools:
   - Glob
   - Grep
