@@ -4,8 +4,6 @@ description: >
   Autonomous executor for well-defined, multi-step tasks.
   Can read, write, and modify files. Use when you know what needs to be done
   but want to keep the main context clean.
-backend: Claude
-model: claude-haiku-4-5-20251001
 tools:
   - Agent
   - TodoWrite
