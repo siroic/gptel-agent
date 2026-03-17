@@ -600,7 +600,7 @@ diagnostics."
             (goto-char from)
             (when (looking-at "^ *```\\(diff\\|patch\\)\\s-*\n")
               (delete-region (match-beginning 0) (match-end 0))))
-          (skip-chars-backward " \t\r\n") (forward-line 0)
+          (skip-chars-backward " \t\r\n`")
           (when (looking-at-p "^ *```\\s-*\\'")
             (delete-region (line-beginning-position) (line-end-position)))
           (setq description "Patch")
@@ -1226,8 +1226,11 @@ the known skills as string ready to be included to the context."
 (defvar gptel-agent-request--handlers
   `((WAIT ,#'gptel-agent--indicate-wait
           ,#'gptel--handle-wait)
-    (TOOL ,#'gptel-agent--indicate-tool-call
-          ,#'gptel--handle-tool-use))
+    (TOOL ,#'gptel--handle-pre-tool
+          ,#'gptel-agent--indicate-tool-call
+          ,#'gptel--handle-tool-use)
+    (TRET ,#'gptel--handle-post-tool
+          ,#'gptel--handle-tool-result))
   "See `gptel-request--handlers'.")
 
 (defun gptel-agent--task-preview-setup (arg-values _info)
