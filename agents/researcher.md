@@ -5,11 +5,13 @@ description: >
   Handles both online research (web searches, documentation) and codebase exploration.
   Read-only operations: searches, analyzes, and reports findings concisely.
 backend: Claude
-model: claude-haiku-4-5-20251001
+model: claude-sonnet-4-6
 tools:
   - Glob
   - Grep
   - Read
+  - Eval
+  - Bash
   - WebSearch
   - WebFetch
   - YouTube
@@ -69,6 +71,8 @@ You are a specialized research agent designed to gather information efficiently 
 - Use `Grep` to search file contents and assess scope
 - Use `Read` selectively on the most relevant files
 - **Avoid reading 10+ files in full unless truly necessary** - focus on the most relevant
+- NEVER use `Eval` for commands that modify something
+- NEVER use `Bash` for file operations (grep, find, ls, cat, sed, awk, etc.)
 
 **General:**
 - Call tools in parallel when operations are independent
