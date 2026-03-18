@@ -600,8 +600,8 @@ diagnostics."
             (goto-char from)
             (when (looking-at "^ *```\\(diff\\|patch\\)\\s-*\n")
               (delete-region (match-beginning 0) (match-end 0))))
-          (skip-chars-backward " \t\r\n`")
-          (when (looking-at-p "^ *```\\s-*\\'")
+          (skip-chars-backward " \t\r\n")
+          (when (looking-back "^ *```\\s-*\\'" (line-beginning-position))
             (delete-region (line-beginning-position) (line-end-position)))
           (setq description "Patch")
           (require 'diff-mode)
@@ -1139,10 +1139,9 @@ Exactly one item should have status \"in_progress\"."
                                          "C-c g t" #'gptel-agent-toggle-todos))
           (plist-put
            info :post              ; Don't use push, see note in gptel-anthropic
-           (cons (lambda (&rest _)      ; Clean up header line and todo overlay
+           (cons (lambda (&rest _)      ; Clean up header line after tasks are done
                    (when (and gptel-mode gptel-use-header-line header-line-format)
-                     (setf (nth 2 header-line-format) gptel--header-line-info))
-                   (when (overlayp todo-ov) (delete-overlay todo-ov)))
+                     (setf (nth 2 header-line-format) gptel--header-line-info)))
                  (plist-get info :post))))
         (let* ((formatted-todos         ; Format the todo list
                 (mapconcat
@@ -1330,22 +1329,21 @@ MAIN-CB is the main callback to return a value to the main loop.
 AGENT-TYPE is the name of the agent.
 DESCRIPTION is a short description of the task.
 PROMPT is the detailed prompt instructing the agent on what is required."
-  (let* ((agent-plist (cdr (assoc agent-type gptel-agent--agents)))
-         (include-original-prompt (plist-get agent-plist :include-original-prompt)))
-    (gptel-with-preset
-        (nconc (list :include-reasoning nil
-                     :use-tools t
-                     :use-context nil)
-               agent-plist)
-      (let* ((info (gptel-fsm-info gptel--fsm-last))
-             (where (or (plist-get info :tracking-marker)
-                        (plist-get info :position)))
-             (partial (format "%s result for task: %s\n\n"
-                              (capitalize agent-type) description)))
+  (gptel-with-preset
+      (nconc (list :include-reasoning nil
+                   :use-tools t
+                   :context nil)        ;Can be overriden by agent
+             (cdr (assoc agent-type gptel-agent--agents)))
+    (let* ((info (gptel-fsm-info gptel--fsm-last))
+           (where (or (plist-get info :tracking-marker)
+                      (plist-get info :position)))
+           (partial (format "%s result for task: %s\n\n"
+                            (capitalize agent-type) description)))
       (gptel--update-status " Calling Agent..." 'font-lock-escape-face)
       (gptel-request prompt
         :context (gptel-agent--task-overlay where agent-type description)
         :fsm (gptel-make-fsm :handlers gptel-agent-request--handlers)
+        :transforms (list #'gptel--transform-add-context)
         :callback
         (lambda (resp info)
           (let ((ov (plist-get info :context)))
@@ -1369,18 +1367,13 @@ Error details: %S"
                  (delete-overlay ov)
                  (when-let* ((transformer (plist-get info :transformer)))
                    (setq partial (funcall transformer partial)))
-                 ;; If agent has :include-original-prompt, prepend the original
-                 ;; prompt to the result so the receiving agent has full context
-                 (when include-original-prompt
-                   (setq partial (format "## Original Task\n%s\n\n%s"
-                                         prompt partial)))
                  (funcall main-cb partial)))
               ('abort
                (delete-overlay ov)
                (funcall main-cb
                         (format "Error: Task \"%s\" was aborted by the user. \
 %s could not finish."
-                                description agent-type)))))))))))
+                                description agent-type))))))))))
 
 ;;; Register tool call preview functions
 
@@ -1808,19 +1801,6 @@ Should include exactly what information the agent should return."))
  :async t
  :confirm t
  :include t)
-
-;;; Abort cleanup
-(defun gptel-agent--abort-cleanup ()
-  "Clean up gptel-agent overlays when a request is aborted.
-
-Removes delegation task overlays and todo overlays from the
-current buffer."
-  (dolist (ov (overlays-in (point-min) (point-max)))
-    (when (or (overlay-get ov 'gptel-agent)
-              (overlay-get ov 'gptel-agent--todos))
-      (delete-overlay ov))))
-
-(add-hook 'gptel-abort-hook #'gptel-agent--abort-cleanup)
 
 (provide 'gptel-agent-tools)
 ;;; gptel-agent-tools.el ends here

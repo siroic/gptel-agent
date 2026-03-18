@@ -335,7 +335,8 @@ Signals an error if:
 
         ;; Search for closing delimiter
         (unless (re-search-forward "^---[ \t]*$" nil t)
-          (error "Malformed frontmatter: opening delimiter '---' found but no closing delimiter"))
+          (error "Malformed frontmatter in \"%s\" : \
+opening delimiter '---' found but no closing delimiter" file-path))
 
         ;; Extract frontmatter text (from start to beginning of closing delimiter)
         (let* ((frontmatter-end (match-beginning 0))
@@ -372,8 +373,11 @@ Signals an error if:
                 ;; Apply template substitutions in place, then extract body text
                 (gptel-agent--expand-templates body-start templates))
               ;; Extract the expanded body text
-              (let ((expanded-body (buffer-substring-no-properties body-start (point-max))))
-                (plist-put parsed-yaml :system expanded-body)))))))))
+              (if-let* ((expanded-body (buffer-substring-no-properties
+                                        body-start (point-max)))
+                        ((not (string-blank-p expanded-body))))
+                  (plist-put parsed-yaml :system expanded-body)
+                parsed-yaml))))))))
 
 (defun gptel-agent-parse-org-properties (file-path &optional validator templates metadata-only)
   "Parse an Org file with properties in a :PROPERTIES: drawer.
@@ -429,7 +433,8 @@ Signals an error if:
                (body-start (save-excursion
                              (goto-char (cdr prop-range))
                              (forward-line 1) ; Move past the :END: line
-                             (while (looking-at-p "^\\s-*$") (forward-line 1))
+                             (while (and (not (eobp)) (looking-at-p "^\\s-*$"))
+                               (forward-line 1))
                              (point))))
 
           ;; Process each property
@@ -467,9 +472,11 @@ Signals an error if:
               ;; Apply template substitutions in place, then extract body text
               (gptel-agent--expand-templates body-start templates))
             ;; Extract the expanded body text
-            (let ((body-text (buffer-substring-no-properties
-                                  body-start (point-max))))
-              (plist-put props-plist :system body-text))))))))
+            (if-let* ((body-text (buffer-substring-no-properties
+                                  body-start (point-max)))
+                      ((not (string-blank-p body-text))))
+                (plist-put props-plist :system body-text)
+              props-plist)))))))
 
 ;;; Commands
 
