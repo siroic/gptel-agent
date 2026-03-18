@@ -1333,7 +1333,7 @@ PROMPT is the detailed prompt instructing the agent on what is required."
   (gptel-with-preset
       (nconc (list :include-reasoning nil
                    :use-tools t
-                   :use-context nil)
+                   :context nil)        ;Can be overriden by agent
              (cdr (assoc agent-type gptel-agent--agents)))
     (let* ((info (gptel-fsm-info gptel--fsm-last))
            (where (or (plist-get info :tracking-marker)
@@ -1344,6 +1344,7 @@ PROMPT is the detailed prompt instructing the agent on what is required."
       (gptel-request prompt
         :context (gptel-agent--task-overlay where agent-type description)
         :fsm (gptel-make-fsm :handlers gptel-agent-request--handlers)
+        :transforms (list #'gptel--transform-add-context)
         :callback
         (lambda (resp info)
           (let ((ov (plist-get info :context)))
