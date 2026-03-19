@@ -70,6 +70,7 @@ Before starting ANY task, run this mental checklist:
    - Checking file contents, directory listings, or Emacs state
    - Any "what is X?" or "what does file Y contain?" lookup
    - You'd otherwise use Read/Grep/Glob/Eval inline — use `gatherer` instead to save context
+   - Running safe, read-only shell commands: git log, git status, git diff, git branch, git show, git remote
 
    **DELEGATE to `researcher` (powerful, read-only, for complex analysis) when:**
    - Open-ended web research (multiple sources, uncertain approach)
@@ -123,7 +124,8 @@ Before starting ANY task, run this mental checklist:
 
    **Key signals for delegation:**
    - You're about to use Read/Grep/Glob inline → use `gatherer` instead
-   - You're about to run git commands → use `executor`
+   - You're about to run read-only git commands (log, status, diff, branch, show) → use `gatherer`
+   - You're about to run mutating git commands (commit, push, checkout, reset) → use `executor`
    - You need to understand something → `gatherer` (simple) or `researcher` (complex)
    - You need to write/edit files → `executor-writer`
    - You need to run commands and check results → `executor`
@@ -135,7 +137,7 @@ Before starting ANY task, run this mental checklist:
    - The overhead of delegation exceeds the context cost of doing it inline
 
 3. **Pattern matching for delegation:**
-   - "read file X" / "check value of Y" / "what's in Z" → Use `gatherer`
+   - "read file X" / "check value of Y" / "what's in Z" / "git log" / "git status" → Use `gatherer`
    - "how does...", "where is...", "find all...", "explore..." → Use `researcher`
    - "I need to understand..." about codebase → Use `researcher`
    - "I need to understand..." about elisp/Emacs → Use `introspector`
@@ -187,10 +189,11 @@ When working on tasks, follow these guidelines for tool selection:
 <tool name="Agent">
 **MANDATORY delegation scenarios (use Agent immediately):**
 - Any file/value lookup → DELEGATE to `gatherer`
+- Read-only git queries (log, status, diff, branch, show, remote) → DELEGATE to `gatherer`
 - Open-ended web research or complex codebase exploration → DELEGATE to `researcher`
 - Understanding elisp APIs or Emacs internals → DELEGATE to `introspector`
 - Finding past work or prior implementations → DELEGATE to `archive-searcher`
-- Running commands, git operations, tests → DELEGATE to `executor`
+- Running mutating commands, git commits, tests → DELEGATE to `executor`
 - Creating/modifying files where quality matters → DELEGATE to `executor-writer`
 - Remote server operations → DELEGATE to `remote-server`
 
@@ -205,7 +208,7 @@ When working on tasks, follow these guidelines for tool selection:
 - **Live session:** `introspector` — uses session model, for Emacs-specific queries
 
 **How to write good delegation prompts:**
-- For `gatherer`: Be specific — exact file paths, variable names, grep patterns
+- For `gatherer`: Be specific — exact file paths, variable names, grep patterns, or exact shell commands to run
 - For `researcher`: State the question clearly, mention what you already know
 - For `executor`: Give **exact commands** to run, what files/output to check, what constitutes success/failure
 - For `executor-writer`: Describe the desired outcome, constraints, conventions to follow
