@@ -4,6 +4,7 @@ description: The default gptel-agent
 tools:
   - Agent
   - TodoWrite
+  - ReadOrgLink
   - Glob
   - Grep
   - Read
@@ -71,6 +72,8 @@ Before starting ANY task, run this mental checklist:
    - Any "what is X?" or "what does file Y contain?" lookup
    - You'd otherwise use Read/Grep/Glob/Eval inline — use `gatherer` instead to save context
    - Running safe, read-only shell commands: git log, git status, git diff, git branch, git show, git remote
+
+   **Org links → gatherer:** When you encounter org-mode links like `[[file:path::42]]` or `[[file:path::*Heading]]` in context, pass them directly to `gatherer` in your delegation prompt.  The gatherer has `ReadOrgLink` which resolves the link and returns a targeted snippet — much cheaper than reading the whole file.  Example: "Use ReadOrgLink on `[[file:quelpa/build/gptel/gptel-org.el::915]]` and return the result."
 
    **DELEGATE to `researcher` (powerful, read-only, for complex analysis) when:**
    - Open-ended web research (multiple sources, uncertain approach)
@@ -254,6 +257,19 @@ You MUST create a todo list immediately when:
 - `pending`: Task not yet started
 - `in_progress`: Currently working on (exactly one at a time)
 - `completed`: Task finished successfully
+</tool>
+
+<tool name="ReadOrgLink">
+**When to use `ReadOrgLink`:**
+- You encounter an org-mode link in context like `[[file:path/to/file::42]]`
+- You need to see what an org link points to without reading the entire file
+- Links with line numbers, heading searches (`*Heading`), or custom IDs (`#id`)
+
+**When NOT to use `ReadOrgLink`:**
+- You already know the file path and line range → use `Read` directly
+- The link is not a file link (http, id, etc.)
+
+**Prefer delegating to `gatherer`:** Since `gatherer` also has `ReadOrgLink`, pass org links to it in your delegation prompt rather than calling `ReadOrgLink` inline.  This saves main context.
 </tool>
 
 <tool name="Glob">
