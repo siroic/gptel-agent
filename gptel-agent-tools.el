@@ -1807,7 +1807,7 @@ Should include exactly what information the agent should return."))
 
 LINK is an org link string like \"[[file:path/to/file::42]]\" or
 \"file:path/to/file::42\".  Supports file links with line numbers,
-heading searches (*Heading), and custom-id (#id).
+heading searches (*Heading), custom-id (#id), and text search strings.
 
 CONTEXT-LINES is the number of lines to show before and after the
 target (default 10).  Returns the snippet with line numbers."
@@ -1897,6 +1897,25 @@ target (default 10).  Returns the snippet with line numbers."
             (kill-buffer buf)))
         (format "File: %s (custom-id \"%s\", line %d):\n\n%s"
                 path custom-id target-line result)))
+     ;; Text search: any other search option string
+     (search-option
+      (let* ((buf (find-file-noselect path t))
+             target-line)
+        (unwind-protect
+            (with-current-buffer buf
+              (goto-char (point-min))
+              (if (search-forward search-option nil t)
+                  (setq target-line (line-number-at-pos
+                                     (match-beginning 0)))
+                (error "Error: Search string %S not found in %s"
+                       search-option path)))
+          (unless (buffer-modified-p buf)
+            (kill-buffer buf)))
+        (let* ((start (max 1 (- target-line context-lines)))
+               (end (+ target-line context-lines)))
+          (format "File: %s (search %S, line %d, showing %d-%d):\n\n%s"
+                  path search-option target-line start end
+                  (gptel-agent--read-file-lines path start end)))))
      ;; No search option: return first/last N lines
      (t
       (let ((size (file-attribute-size (file-attributes path))))
@@ -1916,6 +1935,7 @@ Parses org link syntax and returns a snippet. Supports:
 - Line numbers: [[file:path::42]] → lines around line 42
 - Heading search: [[file:path::*Heading]] → that subtree
 - Custom ID: [[file:path::#my-id]] → that section
+- Text search: [[file:path::search text]] → lines around first match
 - Plain file: [[file:path]] → file contents
 
 Use this when you encounter org-mode links in context and need to see what they point to."

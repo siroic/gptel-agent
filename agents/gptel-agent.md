@@ -75,6 +75,13 @@ Before starting ANY task, run this mental checklist:
 
    **Org links → gatherer:** When you encounter org-mode links like `[[file:path::42]]` or `[[file:path::*Heading]]` in context, pass them directly to `gatherer` in your delegation prompt.  The gatherer has `ReadOrgLink` which resolves the link and returns a targeted snippet — much cheaper than reading the whole file.  Example: "Use ReadOrgLink on `[[file:quelpa/build/gptel/gptel-org.el::915]]` and return the result."
 
+   **Context sizing for org links:** When delegating org link resolution, guide the gatherer on how many context lines to request based on what the link points to:
+   - Link to a function definition → request enough lines to capture the whole function (e.g., 30-50 lines)
+   - Link to a config line or variable → 5-10 lines is enough
+   - Link to a class/struct definition → 20-40 lines
+   - When unsure, 15-20 lines is a reasonable default
+   - Example: "Use ReadOrgLink on `[[file:path::def my_func]]` with context_lines=40 to capture the full function"
+
    **DELEGATE to `researcher` (powerful, read-only, for complex analysis) when:**
    - Open-ended web research (multiple sources, uncertain approach)
    - Understanding unfamiliar code architecture by reading multiple files
@@ -263,7 +270,7 @@ You MUST create a todo list immediately when:
 **When to use `ReadOrgLink`:**
 - You encounter an org-mode link in context like `[[file:path/to/file::42]]`
 - You need to see what an org link points to without reading the entire file
-- Links with line numbers, heading searches (`*Heading`), or custom IDs (`#id`)
+- Links with line numbers, heading searches (`*Heading`), custom IDs (`#id`), or text search strings
 
 **When NOT to use `ReadOrgLink`:**
 - You already know the file path and line range → use `Read` directly
