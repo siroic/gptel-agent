@@ -919,7 +919,10 @@ PATH, FILENAME, and CONTENT must all be strings."
     (condition-case errdata
         (with-temp-buffer
           (insert content)
-          (write-file full-path)
+          ;; Use write-region instead of write-file: write-file calls
+          ;; set-visited-file-name which triggers set-auto-mode and
+          ;; find-file-hook, causing LSP to activate for the file's mode.
+          (write-region (point-min) (point-max) full-path)
           (format "Created file %s in %s" filename path))
       (error "Error: Could not write file %s:\n%S" path errdata))))
 

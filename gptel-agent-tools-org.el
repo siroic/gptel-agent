@@ -51,7 +51,9 @@ If DEPTH is nil or 0, return all levels."
         result)
     (unwind-protect
         (with-current-buffer buf
-          (org-mode)
+          ;; file-path is an .org file; find-file-noselect already set the mode.
+          ;; Do NOT call (org-mode) here — it re-fires mode hooks and triggers LSP.
+          (unless (derived-mode-p 'org-mode) (org-mode))
           (let ((tree (org-element-parse-buffer 'headline)))
             (org-element-map tree 'headline
               (lambda (hl)
@@ -108,7 +110,9 @@ SCOPE controls what to return: \"subtree\" (default), \"section\", or \"children
         target-line result heading-title)
     (unwind-protect
         (with-current-buffer buf
-          (org-mode)
+          ;; Do NOT call (org-mode) unconditionally — it re-fires mode hooks and
+          ;; triggers LSP warnings.  find-file-noselect sets the mode already.
+          (unless (derived-mode-p 'org-mode) (org-mode))
           (goto-char (point-min))
           (cond
            ;; Find by line number
@@ -184,8 +188,9 @@ target (default 10).  Returns the snippet with line numbers."
   (let* ((context-lines (or context-lines 10))
          parsed link-type path search-option)
     ;; Parse the link using org-element
+    ;; Note: org-element-link-parser works without org-mode active — do NOT
+    ;; call (org-mode) here as it fires org-mode-hook which triggers LSP warnings.
     (with-temp-buffer
-      (org-mode)
       ;; Wrap bare links in brackets for the parser
       (insert (if (string-prefix-p "[[" link) link
                 (concat "[[" link "]]")))
@@ -219,7 +224,7 @@ target (default 10).  Returns the snippet with line numbers."
              result target-line)
         (unwind-protect
             (with-current-buffer buf
-              (org-mode)
+              (unless (derived-mode-p 'org-mode) (org-mode))
               (goto-char (point-min))
               (if (re-search-forward
                    (format org-complex-heading-regexp-format
@@ -244,7 +249,7 @@ target (default 10).  Returns the snippet with line numbers."
              result target-line)
         (unwind-protect
             (with-current-buffer buf
-              (org-mode)
+              (unless (derived-mode-p 'org-mode) (org-mode))
               (goto-char (point-min))
               (if (re-search-forward
                    (format "^[ \t]*:CUSTOM_ID:[ \t]+%s[ \t]*$"
