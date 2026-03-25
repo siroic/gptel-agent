@@ -1225,8 +1225,8 @@ the known skills as string ready to be included to the context."
 (defvar gptel-agent-request--handlers
   `((WAIT ,#'gptel-agent--indicate-wait
           ,#'gptel--handle-wait)
-    (TOOL ,#'gptel--handle-pre-tool
-          ,#'gptel-agent--indicate-tool-call
+    (TPRE ,#'gptel--handle-pre-tool ,#'gptel--fsm-transition)
+    (TOOL ,#'gptel-agent--indicate-tool-call
           ,#'gptel--handle-tool-use)
     (TRET ,#'gptel--handle-post-tool
           ,#'gptel--handle-tool-result))
@@ -1342,7 +1342,8 @@ PROMPT is the detailed prompt instructing the agent on what is required."
       (gptel--update-status " Calling Agent..." 'font-lock-escape-face)
       (gptel-request prompt
         :context (gptel-agent--task-overlay where agent-type description)
-        :fsm (gptel-make-fsm :handlers gptel-agent-request--handlers)
+        :fsm (gptel-make-fsm :table gptel-send--transitions
+                             :handlers gptel-agent-request--handlers)
         :transforms (list #'gptel--transform-add-context)
         :callback
         (lambda (resp info)
