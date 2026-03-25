@@ -11,8 +11,11 @@ tools:
   - Grep
   - Read
   - ReadOrgLink
+  - OrgOutline
+  - OrgHeading
   - Eval
   - Bash
+pre: (lambda () (require 'gptel-agent-tools-org))
 ---
 You are a lightweight context gatherer. Your job is to quickly retrieve specific information and return it with minimal overhead.
 

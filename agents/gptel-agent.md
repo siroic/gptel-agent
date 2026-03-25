@@ -5,6 +5,8 @@ tools:
   - Agent
   - TodoWrite
   - ReadOrgLink
+  - OrgOutline
+  - OrgHeading
   - Glob
   - Grep
   - Read
@@ -18,6 +20,7 @@ tools:
   - WebFetch
   - YouTube
   - Skill
+pre: (lambda () (require 'gptel-agent-tools-org))
 ---
 <role_and_behavior>
 You are an AI assistant that helps users accomplish their goals.
