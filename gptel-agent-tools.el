@@ -210,43 +210,66 @@ ARG-VALUES is the list of arguments for the tool call."
   "Setup preview overlay for Bash command execution tool call.
 
 ARG-VALUES is the list of arguments for the tool call."
-  (let ((command (car arg-values))
-        (from (point)) (inner-from))
-    (insert
-     "(" (propertize "Bash" 'font-lock-face 'font-lock-keyword-face)
-     ")\n")
-    (setq inner-from (point))
-    (insert command)
-    (gptel-agent--fontify-block 'sh-mode inner-from (point))
-    (insert "\n\n")
-    (font-lock-append-text-property
-     inner-from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
-    (gptel-agent--confirm-overlay from (point) t)))
+  (pcase-let ((from (point))
+              (`(,command ,sudo) arg-values))
+    (let ((sudo (and sudo (not (eq sudo :json-false)))))
+      (insert
+       "(" (propertize "Bash" 'font-lock-face 'font-lock-keyword-face)
+       (if sudo
+           (propertize " [sudo]" 'font-lock-face 'font-lock-warning-face)
+         "")
+       ")\n")
+      (let ((inner-from (point)))
+        (insert command)
+        (gptel-agent--fontify-block 'sh-mode inner-from (point))
+        (insert "\n\n")
+        (font-lock-append-text-property
+         inner-from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
+        (gptel-agent--confirm-overlay from (point) t)))))
 
-(defun gptel-agent--execute-bash (callback command)
-  "Execute COMMAND asynchronously in bash and call CALLBACK with output.
+(defun gptel-agent--execute-bash (callback command &optional sudo)
+  "Execute COMMAND in bash and call CALLBACK with output.
 
 CALLBACK is called with the command output string when the process finishes.
-COMMAND is the bash command string to execute."
-  (let* ((output-buffer (generate-new-buffer " *gptel-agent-bash*"))
-         (proc (make-process
-                :name "gptel-agent-bash"
-                :buffer output-buffer
-                :command (list "bash" "-c" command)
-                :connection-type 'pipe
-                :sentinel
-                (lambda (process _event)
-                  (when (memq (process-status process) '(exit signal))
-                    (let* ((exit-code (process-exit-status process))
-                           (output (with-current-buffer (process-buffer process)
-                                     (buffer-string))))
-                      (kill-buffer (process-buffer process))
-                      (funcall callback
-                               (if (zerop exit-code)
-                                   output
-                                 (format "Command failed with exit code %d:\nSTDOUT+STDERR:\n%s"
-                                         exit-code output)))))))))
-    proc))
+COMMAND is the bash command string to execute.
+SUDO if non-nil, execute the command as root via TRAMP sudo."
+  (let ((sudo (and sudo (not (eq sudo :json-false)))))
+    (if sudo
+        ;; Sudo: use TRAMP sudo path with process-file (synchronous)
+        (let ((default-directory "/sudo::/"))
+          (condition-case err
+              (with-temp-buffer
+                (let ((exit-code
+                       (process-file "/bin/sh" nil (current-buffer) nil
+                                     "-c" command)))
+                  (funcall callback
+                           (if (zerop exit-code)
+                               (buffer-string)
+                             (format "Command failed with exit code %d:\nSTDOUT+STDERR:\n%s"
+                                     exit-code (buffer-string))))))
+            (error
+             (funcall callback
+                      (format "Error executing sudo command: %S" err)))))
+      ;; No sudo: use make-process (truly async)
+      (let* ((output-buffer (generate-new-buffer " *gptel-agent-bash*"))
+             (proc (make-process
+                    :name "gptel-agent-bash"
+                    :buffer output-buffer
+                    :command (list "bash" "-c" command)
+                    :connection-type 'pipe
+                    :sentinel
+                    (lambda (process _event)
+                      (when (memq (process-status process) '(exit signal))
+                        (let* ((exit-code (process-exit-status process))
+                               (output (with-current-buffer (process-buffer process)
+                                         (buffer-string))))
+                          (kill-buffer (process-buffer process))
+                          (funcall callback
+                                   (if (zerop exit-code)
+                                       output
+                                     (format "Command failed with exit code %d:\nSTDOUT+STDERR:\n%s"
+                                             exit-code output)))))))))
+        proc))))
 
 ;;; Web tools
 
@@ -1407,12 +1430,15 @@ Use the provided file tools instead: `Read`, `Write`, `Edit`, \
 - Use absolute paths instead of cd when possible
 - For parallel commands, make multiple `Bash` calls in one message
 - Run tests, check your work or otherwise close the loop to verify changes you make.
+- Set `sudo` to true when the command needs root privileges (e.g. apt install, \
+systemctl, editing /etc files).
 
 EXAMPLES:
 - List files with details: 'ls -lah /path/to/dir'
 - Find recent errors: 'grep -i error /var/log/app.log | tail -20'
 - Check file type: 'file document.pdf'
 - Count lines: 'wc -l *.txt'
+- Install a package: command='apt install -y nginx', sudo=true
 
 The command will be executed in the current working directory.  Output is
 returned as a string.  Long outputs should be filtered/limited using pipes."
@@ -1420,7 +1446,13 @@ returned as a string.  Long outputs should be filtered/limited using pipes."
            :type string
            :description "The Bash command to execute.  \
 Can include pipes and standard shell operators.
-Example: 'ls -la | head -20' or 'grep -i error app.log | tail -50'"))
+Example: 'ls -la | head -20' or 'grep -i error app.log | tail -50'")
+         ( :name "sudo"
+           :type boolean
+           :description "If true, execute the command as root via sudo.  \
+Use this when the command requires elevated privileges, e.g. installing \
+packages, editing system files, or managing services."
+           :optional t))
  :category "gptel-agent"
  :confirm t
  :include t
