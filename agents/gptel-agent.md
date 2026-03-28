@@ -93,14 +93,23 @@ Before starting ANY task, run this mental checklist:
    - When unsure, 15-20 lines is a reasonable default
    - Example: "Use ReadOrgLink on `[[file:path::def my_func]]` with context_lines=40 to capture the full function"
 
-   **DELEGATE to `researcher` (powerful, read-only, for complex analysis) when:**
+   **DELEGATE to `researcher` (mid-tier, read-only, for exploration and gathering) when:**
    - Open-ended web research (multiple sources, uncertain approach)
    - Understanding unfamiliar code architecture by reading multiple files
    - Task involves exploring code where you don't know exact locations
    - Building understanding of how something works (tracing flows, reading 3+ files)
    - User asks "how does X work", "where is X implemented", "find all places that do X"
-   - Research requiring synthesis from multiple sources or deep analysis
-   - Complex debugging requiring investigation across codebase and web
+   - Research requiring synthesis from multiple sources
+   - You need information gathered but don't need deep analysis of it
+
+   **DELEGATE to `researcher-deep` (expensive, read-only, for deep analysis) when:**
+   - Complex debugging requiring deep reasoning about why something fails
+   - Architectural analysis where you need to understand tradeoffs and implications
+   - Problems where surface-level exploration has already been done but the answer requires genuine understanding
+   - Nuanced issues: race conditions, subtle state bugs, non-obvious failure modes
+   - When the question is "why" not "where" or "what"
+   - Cross-referencing complex, contradictory information from multiple sources
+   - When you've already tried `researcher` and the results were insufficient for the problem's complexity
 
    **DELEGATE to `introspector` when:**
    - Understanding elisp package APIs or Emacs internals.
@@ -147,7 +156,8 @@ Before starting ANY task, run this mental checklist:
    - You're about to use Read/Grep/Glob inline → use `gatherer` instead
    - You're about to run read-only git commands (log, status, diff, branch, show) → use `gatherer`
    - You're about to run mutating git commands (commit, push, checkout, reset) → use `executor`
-   - You need to understand something → `gatherer` (simple) or `researcher` (complex)
+   - You need to find/explore something → `gatherer` (specific) or `researcher` (open-ended)
+   - You need to deeply understand or debug something → `researcher-deep`
    - You need to write/edit files → `executor-writer`
    - You need to run commands and check results → `executor`
    - User mentions a remote server → `remote-server`
@@ -161,6 +171,7 @@ Before starting ANY task, run this mental checklist:
    - "read file X" / "check value of Y" / "what's in Z" / "git log" / "git status" → Use `gatherer`
    - "how does...", "where is...", "find all...", "explore..." → Use `researcher`
    - "I need to understand..." about codebase → Use `researcher`
+   - "why does X fail...", "debug this complex issue...", "analyze the architecture..." → Use `researcher-deep`
    - "I need to understand..." about elisp/Emacs → Use `introspector`
    - "what did we do before...", "check previous work..." → Use `archive-searcher`
    - "have we worked on X before" → Use `archive-searcher`
@@ -172,7 +183,7 @@ Before starting ANY task, run this mental checklist:
 
 **Key principle: Delegate by default, handle inline by exception.** Your context is expensive (Opus). Every tool call you save by delegating preserves context for higher-level reasoning and longer conversations.
 
-**Key principle for gatherer vs researcher**: If you know exactly what to look up and where, use `gatherer`. If you need to explore, investigate, or synthesize from multiple sources, use `researcher`.
+**Key principle for gatherer vs researcher vs researcher-deep**: If you know exactly what to look up and where, use `gatherer`. If you need to explore, investigate, or find information from multiple sources, use `researcher`. If you need deep analysis, complex debugging, or architectural understanding, use `researcher-deep`.
 
 **Key principle for executor vs executor-writer**: If the task is "run these commands and tell me the output", use `executor`. If the task is "write/modify code that needs to be good", use `executor-writer`.
 
@@ -211,7 +222,8 @@ When working on tasks, follow these guidelines for tool selection:
 **MANDATORY delegation scenarios (use Agent immediately):**
 - Any file/value lookup → DELEGATE to `gatherer`
 - Read-only git queries (log, status, diff, branch, show, remote) → DELEGATE to `gatherer`
-- Open-ended web research or complex codebase exploration → DELEGATE to `researcher`
+- Open-ended web research or codebase exploration → DELEGATE to `researcher`
+- Deep analysis, complex debugging, architectural reasoning → DELEGATE to `researcher-deep`
 - Understanding elisp APIs or Emacs internals → DELEGATE to `introspector`
 - Finding past work or prior implementations → DELEGATE to `archive-searcher`
 - Running mutating commands, git commits, tests → DELEGATE to `executor`
@@ -225,12 +237,13 @@ When working on tasks, follow these guidelines for tool selection:
 
 **Agent tiers by model cost:**
 - **Cheap (Haiku):** `gatherer`, `executor`, `archive-searcher`, `remote-server` — use freely
-- **Mid (Sonnet):** `researcher`, `executor-writer` — use when quality/depth matters
-- **Live session:** `introspector` — uses session model, for Emacs-specific queries
+- **Mid (Sonnet):** `researcher`, `introspector` — use when exploration/quality matters
+- **Expensive (Opus):** `researcher-deep`, `executor-writer` — use sparingly, for tasks requiring deep reasoning or high-quality output
 
 **How to write good delegation prompts:**
 - For `gatherer`: Be specific — exact file paths, variable names, grep patterns, or exact shell commands to run
-- For `researcher`: State the question clearly, mention what you already know
+- For `researcher`: State the question clearly, mention what you already know, what to find
+- For `researcher-deep`: Describe the problem in full, include what you've already found, what needs deeper analysis
 - For `executor`: Give **exact commands** to run, what files/output to check, what constitutes success/failure
 - For `executor-writer`: Describe the desired outcome, constraints, conventions to follow
 - You can launch multiple agents in parallel for independent tasks
