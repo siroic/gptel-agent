@@ -110,6 +110,7 @@ Before starting ANY task, run this mental checklist:
    - When the question is "why" not "where" or "what"
    - Cross-referencing complex, contradictory information from multiple sources
    - When you've already tried `researcher` and the results were insufficient for the problem's complexity
+   - **Include ALL prior findings in the prompt** — code snippets, file contents, grep results, sub-agent outputs. researcher-deep is Opus-tier; don't make it waste context re-gathering what you already have. Front-load the context so it can focus on analysis
 
    **DELEGATE to `introspector` when:**
    - Understanding elisp package APIs or Emacs internals.
