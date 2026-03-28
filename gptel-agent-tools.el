@@ -1348,6 +1348,58 @@ ARG-VALUES is a list: (type description prompt)"
        (concat msg (propertize "Waiting..." 'face 'warning) "\n"
                gptel-agent--hrule)))))
 
+(defun gptel-agent--resolve-model (model-name)
+  "Resolve MODEL-NAME to a backend and model.
+MODEL-NAME is a string (e.g. \"haiku\", \"claude-sonnet-4-6\").
+Returns a plist (:backend BACKEND :model MODEL) if found, nil otherwise."
+  (let ((model-sym (intern (downcase model-name))))
+    (or
+     ;; Check if it's a model alias (has :model-id property)
+     (when (get model-sym :model-id)
+       (cl-loop for (_name . backend) in gptel--known-backends
+                when (memq model-sym (gptel-backend-models backend))
+                return (list :backend backend :model model-sym)))
+     ;; Check if it matches a model name in any backend
+     (cl-loop
+      for (_name . backend) in gptel--known-backends
+      thereis (cl-loop
+               for model in (gptel-backend-models backend)
+               when (string-equal-ignore-case
+                     model-name (gptel--model-name model))
+               return (list :backend backend :model model))))))
+
+(defun gptel-agent--get-model-override (agent-type)
+  "Get model override for AGENT-TYPE from org heading tags or properties.
+
+Checks (in priority order):
+1. Tags on the current org heading matching AGENT@MODEL pattern
+   (e.g. \"gatherer@haiku\", \"researcher@opus\")
+2. The GPTEL_AGENT_MODELS org property (inherited), with
+   space-separated agent@model entries
+
+Returns a plist (:backend BACKEND :model MODEL) if an override is
+found, nil otherwise."
+  (when (derived-mode-p 'org-mode)
+    (save-excursion
+      (ignore-errors (org-back-to-heading t))
+      (let ((prefix (concat agent-type "@")))
+        ;; 1. Check tags for agent@model pattern
+        (or (cl-loop
+             for tag in (org-get-tags)
+             for tag-down = (downcase tag)
+             when (string-prefix-p prefix tag-down)
+             thereis (gptel-agent--resolve-model
+                      (substring tag-down (length prefix))))
+            ;; 2. Check GPTEL_AGENT_MODELS property (inherited)
+            (when-let* ((prop (org-entry-get nil "GPTEL_AGENT_MODELS" t))
+                        (entries (split-string prop))
+                        (match (cl-find-if
+                                (lambda (entry)
+                                  (string-prefix-p prefix (downcase entry)))
+                                entries)))
+              (gptel-agent--resolve-model
+               (substring (downcase match) (length prefix)))))))))
+
 (defun gptel-agent--task (main-cb agent-type description prompt)
   "Call a gptel agent to do specific compound tasks.
 
@@ -1355,11 +1407,19 @@ MAIN-CB is the main callback to return a value to the main loop.
 AGENT-TYPE is the name of the agent.
 DESCRIPTION is a short description of the task.
 PROMPT is the detailed prompt instructing the agent on what is required."
-  (gptel-with-preset
-      (nconc (list :include-reasoning nil
-                   :use-tools t
-                   :context nil)        ;Can be overriden by agent
-             (cdr (assoc agent-type gptel-agent--agents)))
+  (let ((model-override (gptel-agent--get-model-override agent-type)))
+    (gptel-with-preset
+        (append (list :include-reasoning nil
+                      :use-tools t
+                      :context nil)     ;Can be overriden by agent
+                (cdr (assoc agent-type gptel-agent--agents))
+                ;; Model override from tags/properties: must be LAST
+                ;; because map-do in gptel--apply-preset processes all
+                ;; keys left-to-right with last-writer-wins semantics
+                (when model-override
+                  (list :backend (gptel-backend-name
+                                  (plist-get model-override :backend))
+                        :model (plist-get model-override :model))))
     (let* ((info (gptel-fsm-info gptel--fsm-last))
            (where (or (plist-get info :tracking-marker)
                       (plist-get info :position)))
@@ -1400,7 +1460,7 @@ Error details: %S"
                (funcall main-cb
                         (format "Error: Task \"%s\" was aborted by the user. \
 %s could not finish."
-                                description agent-type))))))))))
+                                description agent-type)))))))))))
 
 ;;; Register tool call preview functions
 
