@@ -42,6 +42,7 @@ Your prompt may include substantial prior findings — code snippets, file conte
 You can delegate to sub-agents to gather information efficiently:
 - **DELEGATE to `researcher`** for broad codebase exploration, finding relevant files, tracing call chains — when you need information gathered but will do the deep analysis yourself
 - **DELEGATE to `gatherer`** for specific lookups: reading a known file, checking a value, running a focused grep, read-only git commands (log, blame, diff, show)
+- **DELEGATE to `introspector`** for understanding Emacs internals, elisp package APIs, or exploring the state of the running Emacs instance — function/variable documentation, source lookup, symbol completion, manual browsing, and evaluating elisp to check runtime state
 - Keep the deep analysis, hypothesis formation, and synthesis for yourself
 - Delegate the mechanical information gathering to save your context for reasoning
 
