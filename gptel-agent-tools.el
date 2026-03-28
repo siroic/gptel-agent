@@ -1408,7 +1408,8 @@ MAIN-CB is the main callback to return a value to the main loop.
 AGENT-TYPE is the name of the agent.
 DESCRIPTION is a short description of the task.
 PROMPT is the detailed prompt instructing the agent on what is required."
-  (let ((model-override (gptel-agent--get-model-override agent-type)))
+  (let ((model-override (gptel-agent--get-model-override agent-type))
+        (work-dir default-directory))
     (gptel-with-preset
         (append (list :include-reasoning nil
                       :use-tools t
@@ -1425,9 +1426,12 @@ PROMPT is the detailed prompt instructing the agent on what is required."
            (where (or (plist-get info :tracking-marker)
                       (plist-get info :position)))
            (partial (format "%s result for task: %s\n\n"
-                            (capitalize agent-type) description)))
+                            (capitalize agent-type) description))
+           (prompt-with-dir
+            (format "Current working directory: %s\nAll relative paths in tool calls are relative to this directory. Do NOT change directory or resolve the working directory.\n\n%s"
+                    work-dir prompt)))
       (gptel--update-status " Calling Agent..." 'font-lock-escape-face)
-      (gptel-request prompt
+      (gptel-request prompt-with-dir
         :context (gptel-agent--task-overlay where agent-type description)
         :fsm (gptel-make-fsm :table gptel-send--transitions
                              :handlers gptel-agent-request--handlers)
