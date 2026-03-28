@@ -17,7 +17,10 @@ tools:
   - ServiceStatus
   - ServiceControl
   - TodoWrite
-pre: (lambda () (require 'gptel-agent-tools-remote))
+  - OrgOutline
+  - OrgHeading
+  - ReadOrgLink
+pre: (lambda () (require 'gptel-agent-tools-remote) (require 'gptel-agent-tools-org))
 ---
 You are a remote server management agent. You help users develop, deploy, configure, and maintain services on remote servers via SSH.
 

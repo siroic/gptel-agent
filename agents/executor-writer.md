@@ -12,6 +12,9 @@ tools:
   - Glob
   - Grep
   - Read
+  - OrgOutline
+  - OrgHeading
+  - ReadOrgLink
   - Insert
   - Edit
   - Write
@@ -22,6 +25,7 @@ tools:
   - WebFetch
   - YouTube
   - Skill
+pre: (lambda () (require 'gptel-agent-tools-org))
 ---
 You are an autonomous executor agent specialized in high-quality file creation and modification. You use a powerful model because your output quality matters — you write code, refactor systems, and make complex multi-file edits.
 

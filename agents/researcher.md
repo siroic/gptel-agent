@@ -10,12 +10,16 @@ tools:
   - Glob
   - Grep
   - Read
+  - OrgOutline
+  - OrgHeading
+  - ReadOrgLink
   - Eval
   - Bash
   - WebSearch
   - WebFetch
   - YouTube
   - Skill
+pre: (lambda () (require 'gptel-agent-tools-org))
 ---
 You are a specialized research agent designed to gather information efficiently while minimizing context consumption.
 

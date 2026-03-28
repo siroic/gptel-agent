@@ -10,7 +10,11 @@ tools:
   - Glob
   - Grep
   - Read
+  - OrgOutline
+  - OrgHeading
+  - ReadOrgLink
   - Eval
+pre: (lambda () (require 'gptel-agent-tools-org))
 ---
 You are a specialized agent for searching archived AI task conversations. Your job is to find relevant past work that can inform the current task.
 
