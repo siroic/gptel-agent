@@ -290,16 +290,17 @@ target (default 10).  Returns the snippet with line numbers."
           (format "File: %s (search %S, line %d, showing %d-%d):\n\n%s"
                   path search-option target-line start end
                   (gptel-agent--read-file-lines path start end)))))
-     ;; No search option: return first/last N lines
+     ;; No search option: return file head, capped by context-lines
      (t
-      (let ((size (file-attribute-size (file-attributes path))))
-        (if (> size (* 512 1024))
-            (format "File: %s (large file, showing first %d lines):\n\n%s"
-                    path (* 2 context-lines)
-                    (gptel-agent--read-file-lines
-                     path 1 (* 2 context-lines)))
-          (format "File: %s:\n\n%s" path
-                  (gptel-agent--read-file-lines path nil nil))))))))
+      (let* ((max-lines (* 2 context-lines))
+             (content (gptel-agent--read-file-lines path 1 max-lines))
+             (total-lines (with-temp-buffer
+                            (insert-file-contents path)
+                            (count-lines (point-min) (point-max)))))
+        (if (> total-lines max-lines)
+            (format "File: %s (showing first %d of %d lines):\n\n%s"
+                    path max-lines total-lines content)
+          (format "File: %s:\n\n%s" path content)))))))
 
 ;;; Tool declarations
 
@@ -373,7 +374,7 @@ Parses org link syntax and returns a snippet. Supports:
 - Heading search: [[file:path::*Heading]] → that subtree
 - Custom ID: [[file:path::#my-id]] → that section
 - Text search: [[file:path::search text]] → lines around first match
-- Plain file: [[file:path]] → file contents
+- Plain file: [[file:path]] → first 2×context_lines lines (default 20)
 
 Use this when you encounter org-mode links in context and need to see what they point to."
  :args '((:name "link"
@@ -381,7 +382,7 @@ Use this when you encounter org-mode links in context and need to see what they 
           :description "The org link to resolve, e.g. '[[file:path/to/file::42]]' or 'file:path::*Heading'")
          (:name "context_lines"
           :type integer
-          :description "Lines of context before/after target line (default 10). Only applies to line-number links."
+          :description "Lines of context before/after target line (default 10). Only applies to line-number links and plain file links."
           :optional t
           :minimum 1
           :maximum 50))
