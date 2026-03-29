@@ -54,6 +54,8 @@
 (declare-function gptel-org-agent--setup-task-subtree "gptel-org-agent")
 (declare-function gptel-org-agent--extract-final-text "gptel-org-agent")
 (declare-function gptel-org-agent--close-indirect-buffer "gptel-org-agent")
+;; gptel-org-agent.el (Phase 4 TodoWrite org integration)
+(declare-function gptel-org-agent--write-todo-org "gptel-org-agent")
 (defvar gptel-org-agent-subtrees)
 
 (defvar url-http-end-of-headers)
@@ -1198,71 +1200,80 @@ file.  Results are sorted by modification time."
 
 TODOS is a list of plists with keys :content, :activeForm, and :status.
 Completed items are displayed with strikethrough and shadow face.
-Exactly one item should have status \"in_progress\"."
+Exactly one item should have status \"in_progress\".
+
+When `gptel-org-agent-subtrees' is enabled and we're in an org-mode
+buffer, delegates to `gptel-org-agent--write-todo-org' which creates
+org TODO headings instead of overlays."
   (setq gptel-agent--todos todos)
-  ;; Update overlay
-  (let* ((info (gptel-fsm-info gptel--fsm-last))
-         (where-from
-          (previous-single-property-change
-           (plist-get info :position) 'gptel nil (point-min)))
-         (where-to (plist-get info :position)))
-    (unless (= where-from where-to)
-      (pcase-let ((`(,_ . ,todo-ov)
-                   (get-char-property-and-overlay where-from 'gptel-agent--todos)))
-        (if todo-ov
-            ;; Move if reusing an old overlay and the text has changed.
-            (move-overlay todo-ov where-from where-to)
-          (setq todo-ov (make-overlay where-from where-to nil t))
-          (overlay-put todo-ov 'gptel-agent--todos t)
-          (overlay-put todo-ov 'evaporate t)
-          (overlay-put todo-ov 'priority -40)
-          (overlay-put todo-ov 'keymap (define-keymap
-                                         "C-c g t" #'gptel-agent-toggle-todos))
-          (plist-put
-           info :post              ; Don't use push, see note in gptel-anthropic
-           (cons (lambda (&rest _)      ; Clean up header line and todo overlay after tasks are done
-                   (when (and gptel-mode gptel-use-header-line header-line-format)
-                     (setf (nth 2 header-line-format) gptel--header-line-info))
-                   (when (overlayp todo-ov) (delete-overlay todo-ov)))
-                 (plist-get info :post))))
-        (let* ((formatted-todos         ; Format the todo list
-                (mapconcat
-                 (lambda (todo)
-                   (pcase (plist-get todo :status)
-                     ("completed"
-                      (concat "✓ " (propertize (plist-get todo :content)
-                                               'face '(:inherit shadow :strike-through t))))
-                     ("in_progress"
-                      (concat "● " (propertize (plist-get todo :activeForm)
-                                               'face '(:inherit bold :inherit warning))))
-                     (_ (concat "○ " (plist-get todo :content)))))
-                 todos "\n"))
-               (in-progress
-                (cl-loop for todo across todos
-                         when (equal (plist-get todo :status) "in_progress")
-                         return (plist-get todo :activeForm)))
-               (todo-display
-                (concat
-                 (unless (= (char-before (overlay-end todo-ov)) 10) "\n")
-                 gptel-agent--hrule
-                 (propertize "Task list: [ "
-                             'face '(:inherit font-lock-comment-face :inherit bold))
-                 (save-excursion
-                   (goto-char (1- (overlay-end todo-ov)))
-                   (propertize (substitute-command-keys "\\[gptel-agent-toggle-todos]")
-                               'face 'help-key-binding))
-                 (propertize " to toggle display ]\n" 'face 'font-lock-comment-face)
-                 formatted-todos "\n"
-                 gptel-agent--hrule)))
-          (overlay-put todo-ov 'after-string todo-display)
-          (when (and gptel-mode gptel-use-header-line in-progress header-line-format)
-            (setf (nth 2 header-line-format)
-                  (concat (propertize
-                           " " 'display
-                           `(space :align-to (- right ,(+ 5 (length in-progress)))))
-                          (propertize (concat "Task: " in-progress)
-                                      'face 'font-lock-escape-face))))))))
-  t)
+  ;; Dispatch: org headings when subtrees are active, overlays otherwise
+  (if (and (bound-and-true-p gptel-org-agent-subtrees)
+           (derived-mode-p 'org-mode)
+           (fboundp 'gptel-org-agent--write-todo-org))
+      (gptel-org-agent--write-todo-org todos)
+    ;; Fallback: overlay-based display for non-org or non-subtree buffers
+    (let* ((info (gptel-fsm-info gptel--fsm-last))
+           (where-from
+            (previous-single-property-change
+             (plist-get info :position) 'gptel nil (point-min)))
+           (where-to (plist-get info :position)))
+      (unless (= where-from where-to)
+        (pcase-let ((`(,_ . ,todo-ov)
+                     (get-char-property-and-overlay where-from 'gptel-agent--todos)))
+          (if todo-ov
+              ;; Move if reusing an old overlay and the text has changed.
+              (move-overlay todo-ov where-from where-to)
+            (setq todo-ov (make-overlay where-from where-to nil t))
+            (overlay-put todo-ov 'gptel-agent--todos t)
+            (overlay-put todo-ov 'evaporate t)
+            (overlay-put todo-ov 'priority -40)
+            (overlay-put todo-ov 'keymap (define-keymap
+                                           "C-c g t" #'gptel-agent-toggle-todos))
+            (plist-put
+             info :post            ; Don't use push, see note in gptel-anthropic
+             (cons (lambda (&rest _)    ; Clean up header line and todo overlay after tasks are done
+                     (when (and gptel-mode gptel-use-header-line header-line-format)
+                       (setf (nth 2 header-line-format) gptel--header-line-info))
+                     (when (overlayp todo-ov) (delete-overlay todo-ov)))
+                   (plist-get info :post))))
+          (let* ((formatted-todos       ; Format the todo list
+                  (mapconcat
+                   (lambda (todo)
+                     (pcase (plist-get todo :status)
+                       ("completed"
+                        (concat "✓ " (propertize (plist-get todo :content)
+                                                 'face '(:inherit shadow :strike-through t))))
+                       ("in_progress"
+                        (concat "● " (propertize (plist-get todo :activeForm)
+                                                 'face '(:inherit bold :inherit warning))))
+                       (_ (concat "○ " (plist-get todo :content)))))
+                   todos "\n"))
+                 (in-progress
+                  (cl-loop for todo across todos
+                           when (equal (plist-get todo :status) "in_progress")
+                           return (plist-get todo :activeForm)))
+                 (todo-display
+                  (concat
+                   (unless (= (char-before (overlay-end todo-ov)) 10) "\n")
+                   gptel-agent--hrule
+                   (propertize "Task list: [ "
+                               'face '(:inherit font-lock-comment-face :inherit bold))
+                   (save-excursion
+                     (goto-char (1- (overlay-end todo-ov)))
+                     (propertize (substitute-command-keys "\\[gptel-agent-toggle-todos]")
+                                 'face 'help-key-binding))
+                   (propertize " to toggle display ]\n" 'face 'font-lock-comment-face)
+                   formatted-todos "\n"
+                   gptel-agent--hrule)))
+            (overlay-put todo-ov 'after-string todo-display)
+            (when (and gptel-mode gptel-use-header-line in-progress header-line-format)
+              (setf (nth 2 header-line-format)
+                    (concat (propertize
+                             " " 'display
+                             `(space :align-to (- right ,(+ 5 (length in-progress)))))
+                            (propertize (concat "Task: " in-progress)
+                                        'face 'font-lock-escape-face))))))))
+    t))
 
 ;;; Skill tool
 (defun gptel-agent--get-skill (skill &optional _args)
