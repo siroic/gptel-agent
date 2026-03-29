@@ -50,6 +50,12 @@
 (declare-function org-escape-code-in-region "org-src")
 (declare-function gptel-agent-read-file "gptel-agent")
 
+;; gptel-org-agent.el (Phase 2 sub-agent subtrees)
+(declare-function gptel-org-agent--setup-task-subtree "gptel-org-agent")
+(declare-function gptel-org-agent--extract-final-text "gptel-org-agent")
+(declare-function gptel-org-agent--close-indirect-buffer "gptel-org-agent")
+(defvar gptel-org-agent-subtrees)
+
 (defvar url-http-end-of-headers)
 (defvar gptel-agent--agents)
 (defvar gptel-agent--skills)
@@ -1308,6 +1314,118 @@ the known skills as string ready to be included to the context."
           ,#'gptel--handle-tool-result))
   "See `gptel-request--handlers'.")
 
+;;; Sub-agent subtree handlers (Phase 2)
+;;
+;; When `gptel-org-agent-subtrees' is enabled, sub-agent tasks use
+;; buffer-writing (like `gptel-send') instead of callback-based string
+;; accumulation.  The LLM response is streamed directly into an indirect
+;; buffer narrowed to the agent's subtree.
+;;
+;; On completion (DONE/ERRS/ABRT), the final text is extracted from the
+;; indirect buffer, the buffer is closed, and the parent's main-cb is
+;; called with the result.
+;;
+;; Extra keys stored in the FSM info plist:
+;;   :agent-main-cb         - callback to return result to parent agent
+;;   :agent-indirect-buffer - the indirect buffer for this sub-agent
+;;   :agent-type            - agent type string (e.g., "researcher")
+;;   :agent-description     - short task description
+
+(defun gptel-agent-subtree--cleanup (fsm)
+  "Clean up subtree resources for FSM and return the main-cb.
+
+Extracts the final response text from the indirect buffer, closes the
+indirect buffer (folding the subtree), deletes the task overlay from
+the parent buffer, and returns a cons cell (MAIN-CB . RESULT-TEXT).
+
+RESULT-TEXT is either the extracted response or nil on failure."
+  (let* ((info (gptel-fsm-info fsm))
+         (main-cb (plist-get info :agent-main-cb))
+         (indirect-buf (plist-get info :agent-indirect-buffer))
+         (ov (plist-get info :context))
+         (agent-type (plist-get info :agent-type))
+         (description (plist-get info :agent-description))
+         (result-text
+          (when (and indirect-buf (buffer-live-p indirect-buf))
+            (gptel-org-agent--extract-final-text indirect-buf))))
+    ;; Prepend the agent type header to the result
+    (when result-text
+      (setq result-text
+            (format "%s result for task: %s\n\n%s"
+                    (capitalize agent-type) description result-text)))
+    ;; Close the indirect buffer, folding the subtree in the base buffer
+    (when (and indirect-buf (buffer-live-p indirect-buf))
+      (gptel-org-agent--close-indirect-buffer indirect-buf t))
+    ;; Clean up the task overlay in the parent buffer
+    (when (and ov (overlayp ov) (overlay-buffer ov))
+      (delete-overlay ov))
+    (cons main-cb result-text)))
+
+(defun gptel-agent-subtree--handle-done (fsm)
+  "Handle successful completion of a sub-agent subtree task.
+
+Extract the final response from the indirect buffer, clean up
+resources, and call main-cb with the result.  FSM is the sub-agent's
+state machine."
+  (let* ((cleanup (gptel-agent-subtree--cleanup fsm))
+         (main-cb (car cleanup))
+         (result (cdr cleanup)))
+    (when main-cb
+      (funcall main-cb
+               (or result
+                   (format "Error: %s sub-agent completed but produced no output."
+                           (plist-get (gptel-fsm-info fsm) :agent-type)))))))
+
+(defun gptel-agent-subtree--handle-error (fsm)
+  "Handle error in a sub-agent subtree task.
+
+Clean up resources and call main-cb with an error message.
+FSM is the sub-agent's state machine."
+  (let* ((info (gptel-fsm-info fsm))
+         (cleanup (gptel-agent-subtree--cleanup fsm))
+         (main-cb (car cleanup))
+         (agent-type (plist-get info :agent-type))
+         (description (plist-get info :agent-description))
+         (error-data (plist-get info :error)))
+    (when main-cb
+      (funcall main-cb
+               (format "Error: Task %s could not finish task \"%s\". Error details: %S"
+                       agent-type description error-data)))))
+
+(defun gptel-agent-subtree--handle-abort (fsm)
+  "Handle user abort of a sub-agent subtree task.
+
+Clean up resources and call main-cb with an abort message.
+FSM is the sub-agent's state machine."
+  (let* ((info (gptel-fsm-info fsm))
+         (cleanup (gptel-agent-subtree--cleanup fsm))
+         (main-cb (car cleanup))
+         (agent-type (plist-get info :agent-type))
+         (description (plist-get info :agent-description)))
+    (when main-cb
+      (funcall main-cb
+               (format "Error: Task \"%s\" was aborted by the user. %s could not finish."
+                       description agent-type)))))
+
+(defvar gptel-agent-subtree--handlers
+  `((WAIT ,#'gptel-agent--indicate-wait
+          ,#'gptel--handle-wait ,#'gptel--update-wait)
+    (TYPE ,#'gptel--handle-pre-insert)
+    (ERRS ,#'gptel-agent-subtree--handle-error ,#'gptel--fsm-last)
+    (TPRE ,#'gptel--handle-pre-tool ,#'gptel--fsm-transition)
+    (TOOL ,#'gptel-agent--indicate-tool-call
+          ,#'gptel--handle-tool-use ,#'gptel--update-tool-ask)
+    (TRET ,#'gptel--handle-post-tool ,#'gptel--handle-tool-result)
+    (DONE ,#'gptel--handle-post-insert
+          ,#'gptel-agent-subtree--handle-done ,#'gptel--fsm-last)
+    (ABRT ,#'gptel-agent-subtree--handle-abort))
+  "Handler table for sub-agent tasks using buffer-writing subtrees.
+
+Combines `gptel-send--handlers' (buffer insertion via TYPE/DONE) with
+`gptel-agent-request--handlers' (agent indicator overlays for WAIT/TOOL),
+plus custom DONE/ERRS/ABRT handlers that extract text from the indirect
+buffer and call the parent agent's main-cb.")
+
 (defun gptel-agent--task-preview-setup (arg-values _info)
   "Preview setup for Agent.
 INFO is the tool call info plist.
@@ -1456,7 +1574,12 @@ found, nil otherwise."
 MAIN-CB is the main callback to return a value to the main loop.
 AGENT-TYPE is the name of the agent.
 DESCRIPTION is a short description of the task.
-PROMPT is the detailed prompt instructing the agent on what is required."
+PROMPT is the detailed prompt instructing the agent on what is required.
+
+When `gptel-org-agent-subtrees' is enabled and we're in an org-mode
+buffer, the sub-agent's conversation is written into a dedicated
+child subtree via an indirect buffer (subtree mode).  Otherwise, the
+legacy callback-based string accumulation is used."
   (let ((model-override (gptel-agent--get-model-override agent-type))
         (work-dir default-directory))
     (gptel-with-preset
@@ -1474,47 +1597,81 @@ PROMPT is the detailed prompt instructing the agent on what is required."
     (let* ((info (gptel-fsm-info gptel--fsm-last))
            (where (or (plist-get info :tracking-marker)
                       (plist-get info :position)))
-           (partial (format "%s result for task: %s\n\n"
-                            (capitalize agent-type) description))
+           ;; Try to set up subtree mode for the sub-agent
+           (subtree-info
+            (and (bound-and-true-p gptel-org-agent-subtrees)
+                 (fboundp 'gptel-org-agent--setup-task-subtree)
+                 (gptel-org-agent--setup-task-subtree agent-type description)))
            (prompt-with-dir
             (format "Current working directory: %s\nAll relative paths in tool calls are relative to this directory. Do NOT change directory or resolve the working directory.\n\n%s"
                     work-dir prompt)))
       (gptel--update-status " Calling Agent..." 'font-lock-escape-face)
-      (gptel-request prompt-with-dir
-        :context (gptel-agent--task-overlay where agent-type description)
-        :fsm (gptel-make-fsm :table gptel-send--transitions
-                             :handlers gptel-agent-request--handlers)
-        :transforms (list #'gptel--transform-add-context)
-        :callback
-        (lambda (resp info)
-          (let ((ov (plist-get info :context)))
-            (pcase resp
-              ('nil
-               (delete-overlay ov)
-               (funcall main-cb
-                        (format "Error: Task %s could not finish task \"%s\". \
+      (if subtree-info
+          ;; ---- SUBTREE MODE ----
+          ;; Use buffer-writing FSM with indirect buffer.  The LLM response is
+          ;; streamed directly into the indirect buffer.  On completion, the
+          ;; DONE handler extracts the final text and calls main-cb.
+          (let* ((indirect-buf (plist-get subtree-info :indirect-buffer))
+                 (pos-marker (plist-get subtree-info :position-marker))
+                 (task-ov (gptel-agent--task-overlay where agent-type description))
+                 (sub-fsm
+                  (gptel-request prompt-with-dir
+                    :position pos-marker
+                    :buffer indirect-buf
+                    :stream gptel-stream
+                    :context task-ov
+                    :fsm (gptel-make-fsm :table gptel-send--transitions
+                                         :handlers gptel-agent-subtree--handlers)
+                    :transforms (list #'gptel--transform-add-context))))
+            ;; Store sub-agent metadata in the FSM info for the DONE/ERRS/ABRT
+            ;; handlers.  This is safe because Emacs is single-threaded and the
+            ;; async callback hasn't fired yet.
+            (let ((sub-info (gptel-fsm-info sub-fsm)))
+              (plist-put sub-info :agent-main-cb main-cb)
+              (plist-put sub-info :agent-indirect-buffer indirect-buf)
+              (plist-put sub-info :agent-type agent-type)
+              (plist-put sub-info :agent-description description)))
+        ;; ---- LEGACY MODE ----
+        ;; Callback-based string accumulation (original behavior).
+        ;; No indirect buffer; the agent's response is accumulated in a
+        ;; local string and returned to main-cb when complete.
+        (let ((partial (format "%s result for task: %s\n\n"
+                               (capitalize agent-type) description)))
+          (gptel-request prompt-with-dir
+            :context (gptel-agent--task-overlay where agent-type description)
+            :fsm (gptel-make-fsm :table gptel-send--transitions
+                                 :handlers gptel-agent-request--handlers)
+            :transforms (list #'gptel--transform-add-context)
+            :callback
+            (lambda (resp info)
+              (let ((ov (plist-get info :context)))
+                (pcase resp
+                  ('nil
+                   (delete-overlay ov)
+                   (funcall main-cb
+                            (format "Error: Task %s could not finish task \"%s\". \
 
 Error details: %S"
-                                agent-type description (plist-get info :error))))
-              (`(tool-call . ,calls)
-               (unless (plist-get info :tracking-marker)
-                 (plist-put info :tracking-marker where))
-               (gptel--display-tool-calls calls info))
-              ((pred stringp)
-               (setq partial (concat partial resp))
-               ;; If tool use is pending, the agent isn't done, so we just
-               ;; accumulate output without printing it.  We print at the end.
-               (unless (plist-get info :tool-use)
-                 (delete-overlay ov)
-                 (when-let* ((transformer (plist-get info :transformer)))
-                   (setq partial (funcall transformer partial)))
-                 (funcall main-cb partial)))
-              ('abort
-               (delete-overlay ov)
-               (funcall main-cb
-                        (format "Error: Task \"%s\" was aborted by the user. \
+                                    agent-type description (plist-get info :error))))
+                  (`(tool-call . ,calls)
+                   (unless (plist-get info :tracking-marker)
+                     (plist-put info :tracking-marker where))
+                   (gptel--display-tool-calls calls info))
+                  ((pred stringp)
+                   (setq partial (concat partial resp))
+                   ;; If tool use is pending, the agent isn't done, so we just
+                   ;; accumulate output without printing it.  We print at the end.
+                   (unless (plist-get info :tool-use)
+                     (delete-overlay ov)
+                     (when-let* ((transformer (plist-get info :transformer)))
+                       (setq partial (funcall transformer partial)))
+                     (funcall main-cb partial)))
+                  ('abort
+                   (delete-overlay ov)
+                   (funcall main-cb
+                            (format "Error: Task \"%s\" was aborted by the user. \
 %s could not finish."
-                                description agent-type)))))))))))
+                                    description agent-type)))))))))))))
 
 ;;; Register tool call preview functions
 
