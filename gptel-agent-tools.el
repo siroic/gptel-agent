@@ -227,14 +227,63 @@ ARG-VALUES is the list of arguments for the tool call."
          inner-from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
         (gptel-agent--confirm-overlay from (point) t)))))
 
+(defvar gptel-agent--bash-file-op-patterns
+  (list
+   ;; Patterns match the first command in a pipeline or command chain.
+   ;; Each pattern is anchored to match at the start of a command.
+   (cons (rx bos (* space)
+             (or "grep" "egrep" "fgrep" "rg" "ripgrep" "ag" "ack")
+             (or space eol))
+         "Use the `Grep` tool instead of shell grep/rg/ag.")
+   (cons (rx bos (* space)
+             "find" (or space eol))
+         "Use the `Glob` tool instead of shell find.")
+   (cons (rx bos (* space)
+             (or "ls" "dir" "tree")
+             (or space eol))
+         "Use the `Glob` tool (with pattern \"*\") instead of ls/dir/tree.")
+   (cons (rx bos (* space)
+             (or "cat" "head" "tail" "less" "more" "bat")
+             (or space eol))
+         "Use the `Read` tool instead of cat/head/tail.")
+   (cons (rx bos (* space)
+             (or "sed" "awk" "perl -pe" "perl -ne" "perl -i")
+             (or space eol))
+         "Use the `Edit` tool instead of sed/awk.")
+   (cons (rx bos (* space)
+             (or "wc" "nl")
+             (or space eol))
+         "Use the `Read` or `Grep` tool instead of wc/nl."))
+  "Alist of (REGEXP . MESSAGE) for shell commands that should use native tools.
+Each regexp is matched against the command string.")
+
+(defun gptel-agent--check-bash-file-ops (command)
+  "Check if COMMAND uses shell commands that should use native tools.
+Returns an error message string if a file operation is detected, nil otherwise."
+  (let ((result nil))
+    (catch 'found
+      (dolist (pattern gptel-agent--bash-file-op-patterns)
+        (when (string-match-p (car pattern) command)
+          (setq result
+                (format "ERROR: %s\n\nDo NOT use Bash for file operations. \
+The command `%s` should not be run via Bash.\n%s"
+                        (cdr pattern)
+                        (car (split-string command " " t))
+                        (cdr pattern)))
+          (throw 'found t))))
+    result))
+
 (defun gptel-agent--execute-bash (callback command &optional sudo)
   "Execute COMMAND in bash and call CALLBACK with output.
 
 CALLBACK is called with the command output string when the process finishes.
 COMMAND is the bash command string to execute.
 SUDO if non-nil, execute the command as root via TRAMP sudo."
-  (let ((sudo (and sudo (not (eq sudo :json-false)))))
-    (if sudo
+  (let ((file-op-error (gptel-agent--check-bash-file-ops command))
+        (sudo (and sudo (not (eq sudo :json-false)))))
+    (if file-op-error
+        (funcall callback file-op-error)
+      (if sudo
         ;; Sudo: use TRAMP sudo path with process-file (synchronous)
         (let ((default-directory "/sudo::/"))
           (condition-case err
@@ -269,7 +318,7 @@ SUDO if non-nil, execute the command as root via TRAMP sudo."
                                        output
                                      (format "Command failed with exit code %d:\nSTDOUT+STDERR:\n%s"
                                              exit-code output)))))))))
-        proc))))
+        proc)))))
 
 ;;; Web tools
 
@@ -1503,11 +1552,14 @@ Use the provided file tools instead: `Read`, `Write`, `Edit`, \
 systemctl, editing /etc files).
 
 EXAMPLES:
-- List files with details: 'ls -lah /path/to/dir'
-- Find recent errors: 'grep -i error /var/log/app.log | tail -20'
+- Run tests: 'npm test' or 'cargo test'
+- Build project: 'make all'
+- Check git status: 'git status' or 'git log --oneline -10'
 - Check file type: 'file document.pdf'
-- Count lines: 'wc -l *.txt'
 - Install a package: command='apt install -y nginx', sudo=true
+
+DO NOT USE for: grep, find, ls, cat, head, tail, wc, sed, awk, or any \
+file search/read/edit commands.  Use `Grep`, `Glob`, `Read`, `Edit` instead.
 
 The command will be executed in the current working directory.  Output is
 returned as a string.  Long outputs should be filtered/limited using pipes."
@@ -1515,7 +1567,9 @@ returned as a string.  Long outputs should be filtered/limited using pipes."
            :type string
            :description "The Bash command to execute.  \
 Can include pipes and standard shell operators.
-Example: 'ls -la | head -20' or 'grep -i error app.log | tail -50'")
+Do NOT use for file operations: no grep, find, ls, cat, head, \
+tail, wc, sed, awk.  Use the Grep, Glob, Read tools instead.
+Example: 'git log --oneline -10' or 'npm test'")
          ( :name "sudo"
            :type boolean
            :description "If true, execute the command as root via sudo.  \
