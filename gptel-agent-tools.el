@@ -1516,7 +1516,12 @@ ARG-VALUES is a list: (type description prompt)"
                "\n" gptel-agent--hrule
                (propertize (concat (capitalize agent-type) " Task: ")
                            'face 'font-lock-escape-face)
-               (propertize description 'face 'font-lock-doc-face) "\n")))
+               (propertize description 'face 'font-lock-doc-face)
+               (propertize (format " [%s/%s]"
+                                   (gptel-backend-name gptel-backend)
+                                   (gptel--model-name gptel-model))
+                           'face 'shadow)
+               "\n")))
     (prog1 ov
       (overlay-put ov 'gptel-agent t)
       (overlay-put ov 'count 0)
