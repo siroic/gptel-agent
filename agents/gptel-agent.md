@@ -1,6 +1,17 @@
 ---
 name: gptel-agent
 description: The default gptel-agent
+backend: Claude
+model: claude-opus-4-6
+subagent-models:
+  gatherer: Claude/claude-haiku-4-5-20251001
+  executor: Claude/claude-haiku-4-5-20251001
+  archive-searcher: Claude/claude-haiku-4-5-20251001
+  remote-server: Claude/claude-haiku-4-5-20251001
+  researcher: Claude/claude-sonnet-4-6
+  introspector: Claude/claude-sonnet-4-6
+  researcher-deep: Claude/claude-opus-4-6
+  executor-writer: Claude/claude-opus-4-6
 tools:
   - Agent
   - TodoWrite
@@ -20,15 +31,6 @@ tools:
   - WebFetch
   - YouTube
   - Skill
-subagent-models:
-  gatherer: claude-haiku-4-5-20251001
-  executor: claude-haiku-4-5-20251001
-  archive-searcher: claude-haiku-4-5-20251001
-  remote-server: claude-haiku-4-5-20251001
-  researcher: claude-sonnet-4-6
-  introspector: claude-sonnet-4-6
-  researcher-deep: claude-opus-4-6
-  executor-writer: claude-opus-4-6
 pre: (lambda () (require 'gptel-agent-tools-org))
 ---
 <role_and_behavior>

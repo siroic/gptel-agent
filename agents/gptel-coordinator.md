@@ -6,14 +6,14 @@ description: >
 backend: Ollama
 model: hippo_smart
 subagent-models:
-  gatherer: hippo_fast
-  executor: hippo_fast
-  archive-searcher: hippo_fast
-  remote-server: hippo_fast
-  researcher: hippo_smart
-  introspector: hippo_smart
-  researcher-deep: claude-opus-4-6
-  executor-writer: claude-opus-4-6
+  gatherer: Ollama/hippo_fast
+  executor: Ollama/hippo_fast
+  archive-searcher: Ollama/hippo_fast
+  remote-server: Ollama/hippo_fast
+  researcher: Ollama/hippo_smart
+  introspector: Ollama/hippo_smart
+  researcher-deep: Claude/claude-opus-4-6
+  executor-writer: Claude/claude-opus-4-6
 tools:
   - Agent
   - TodoWrite

@@ -1534,23 +1534,48 @@ ARG-VALUES is a list: (type description prompt)"
 
 (defun gptel-agent--resolve-model (model-name)
   "Resolve MODEL-NAME to a backend and model.
-MODEL-NAME is a string (e.g. \"haiku\", \"claude-sonnet-4-6\").
+MODEL-NAME is a string like \"haiku\", \"claude-sonnet-4-6\", or
+\"Ollama/hippo_fast\" (Backend/model format).
+
+When MODEL-NAME contains a \"/\", the part before the slash is used as
+the backend name and the part after as the model name, allowing
+unambiguous resolution.
+
 Returns a plist (:backend BACKEND :model MODEL) if found, nil otherwise."
-  (let ((model-sym (intern (downcase model-name))))
-    (or
-     ;; Check if it's a model alias (has :model-id property)
-     (when (get model-sym :model-id)
-       (cl-loop for (_name . backend) in gptel--known-backends
-                when (memq model-sym (gptel-backend-models backend))
-                return (list :backend backend :model model-sym)))
-     ;; Check if it matches a model name in any backend
-     (cl-loop
-      for (_name . backend) in gptel--known-backends
-      thereis (cl-loop
-               for model in (gptel-backend-models backend)
-               when (string-equal-ignore-case
-                     model-name (gptel--model-name model))
-               return (list :backend backend :model model))))))
+  (if-let* ((slash-pos (string-search "/" model-name))
+            (backend-name (substring model-name 0 slash-pos))
+            (model-part (substring model-name (1+ slash-pos)))
+            (backend (alist-get backend-name gptel--known-backends
+                                nil nil #'equal)))
+      ;; Backend/model format: resolve within the specified backend
+      (let ((model-sym (intern (downcase model-part))))
+        (or
+         ;; Check model alias within the specified backend
+         (when (and (get model-sym :model-id)
+                    (memq model-sym (gptel-backend-models backend)))
+           (list :backend backend :model model-sym))
+         ;; Check by model name within the specified backend
+         (cl-loop
+          for model in (gptel-backend-models backend)
+          when (string-equal-ignore-case
+                model-part (gptel--model-name model))
+          return (list :backend backend :model model))))
+    ;; No slash: search all backends (original behavior)
+    (let ((model-sym (intern (downcase model-name))))
+      (or
+       ;; Check if it's a model alias (has :model-id property)
+       (when (get model-sym :model-id)
+         (cl-loop for (_name . backend) in gptel--known-backends
+                  when (memq model-sym (gptel-backend-models backend))
+                  return (list :backend backend :model model-sym)))
+       ;; Check if it matches a model name in any backend
+       (cl-loop
+        for (_name . backend) in gptel--known-backends
+        thereis (cl-loop
+                 for model in (gptel-backend-models backend)
+                 when (string-equal-ignore-case
+                       model-name (gptel--model-name model))
+                 return (list :backend backend :model model)))))))
 
 (defun gptel-agent--get-model-override (agent-type)
   "Get model override for AGENT-TYPE from org heading tags or properties.
