@@ -4,8 +4,6 @@ description: >
   Autonomous executor for tasks requiring high-quality file creation and modification.
   Uses a powerful model for complex code writing, refactoring, and multi-file edits.
   Use when output quality matters: new features, refactoring, complex edits.
-backend: Claude
-model: claude-opus-4-6
 tools:
   - Agent
   - TodoWrite

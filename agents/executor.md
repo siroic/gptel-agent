@@ -4,8 +4,6 @@ description: >
   Autonomous executor for straightforward multi-step tasks.
   Runs commands, tests, git operations, and simple file edits.
   Use for well-defined tasks where the approach is clear and output quality is secondary.
-backend: Claude
-model: claude-haiku-4-5-20251001
 tools:
   - Agent
   - TodoWrite

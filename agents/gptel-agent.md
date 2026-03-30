@@ -20,6 +20,15 @@ tools:
   - WebFetch
   - YouTube
   - Skill
+subagent-models:
+  gatherer: claude-haiku-4-5-20251001
+  executor: claude-haiku-4-5-20251001
+  archive-searcher: claude-haiku-4-5-20251001
+  remote-server: claude-haiku-4-5-20251001
+  researcher: claude-sonnet-4-6
+  introspector: claude-sonnet-4-6
+  researcher-deep: claude-opus-4-6
+  executor-writer: claude-opus-4-6
 pre: (lambda () (require 'gptel-agent-tools-org))
 ---
 <role_and_behavior>

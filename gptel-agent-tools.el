@@ -1579,6 +1579,22 @@ found, nil otherwise."
               (gptel-agent--resolve-model
                (substring (downcase match) (length prefix)))))))))
 
+(defun gptel-agent--get-parent-subagent-model (agent-type)
+  "Get model override for AGENT-TYPE from parent agent's subagent-models.
+
+Looks up the currently active preset (the parent/calling agent) in
+`gptel-agent--agents' and checks its `:subagent-models' property for
+an entry matching AGENT-TYPE.
+
+Returns a plist (:backend BACKEND :model MODEL) if found, nil otherwise."
+  (when-let* ((parent-name (and (boundp 'gptel--preset) gptel--preset
+                                (symbol-name gptel--preset)))
+              (parent-plist (cdr (assoc parent-name gptel-agent--agents)))
+              (subagent-models (plist-get parent-plist :subagent-models))
+              (agent-key (intern (concat ":" agent-type)))
+              (model-name (plist-get subagent-models agent-key)))
+    (gptel-agent--resolve-model model-name)))
+
 (defun gptel-agent--task (main-cb agent-type description prompt)
   "Call a gptel agent to do specific compound tasks.
 
@@ -1592,11 +1608,18 @@ buffer, the sub-agent's conversation is written into a dedicated
 child subtree via an indirect buffer (subtree mode).  Otherwise, the
 legacy callback-based string accumulation is used."
   (let ((model-override (gptel-agent--get-model-override agent-type))
+        (parent-model (gptel-agent--get-parent-subagent-model agent-type))
         (work-dir default-directory))
     (gptel-with-preset
         (append (list :include-reasoning nil
                       :use-tools t
                       :context nil)     ;Can be overriden by agent
+                ;; Parent's subagent-models: applied BEFORE agent's own
+                ;; plist so agent's own backend/model wins if specified
+                (when parent-model
+                  (list :backend (gptel-backend-name
+                                  (plist-get parent-model :backend))
+                        :model (plist-get parent-model :model)))
                 (cdr (assoc agent-type gptel-agent--agents))
                 ;; Model override from tags/properties: must be LAST
                 ;; because map-do in gptel--apply-preset processes all

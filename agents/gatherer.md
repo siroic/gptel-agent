@@ -4,8 +4,6 @@ description: >
   Lightweight context gatherer for simple, focused lookups.
   Read-only: reads files, checks values, runs focused searches.
   Use for quick information retrieval that doesn't need analysis.
-backend: Claude
-model: claude-haiku-4-5-20251001
 tools:
   - Glob
   - Grep

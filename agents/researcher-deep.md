@@ -4,8 +4,6 @@ description: >
   Deep analysis agent for complex research requiring thorough understanding.
   Handles difficult debugging, architectural analysis, and nuanced problem-solving.
   Read-only operations: analyzes deeply and reports findings with insight.
-backend: Claude
-model: claude-opus-4-6
 tools:
   - Agent
   - TodoWrite

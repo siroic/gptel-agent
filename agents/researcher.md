@@ -4,8 +4,6 @@ description: >
   Specialized agent for research and information gathering.
   Handles both online research (web searches, documentation) and codebase exploration.
   Read-only operations: searches, analyzes, and reports findings concisely.
-backend: Claude
-model: claude-sonnet-4-6
 tools:
   - Agent
   - TodoWrite

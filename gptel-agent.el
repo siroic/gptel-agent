@@ -252,15 +252,19 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
           (setf (alist-get name gptel-agent--agents nil t #'equal)
                 (cdr (gptel-agent-read-file agent-file templates)))))))
 
-  ;; Update the enum for Agent tool
+  ;; Update the enum for Agent tool (exclude top-level agents from sub-agent list)
   (setf (plist-get (car (gptel-tool-args (gptel-get-tool "Agent"))) :enum)
-        (vconcat (delete "gptel-agent" (mapcar #'car gptel-agent--agents))))
+        (vconcat (cl-delete-if
+                  (lambda (name) (member name '("gptel-agent" "gptel-coordinator")))
+                  (mapcar #'car gptel-agent--agents))))
 
-  ;; Apply gptel-agent preset if it exists
+  ;; Apply top-level agent presets if they exist
   (when-let* ((gptel-agent-plist (assoc-default "gptel-agent" gptel-agent--agents nil nil)))
     (apply #'gptel-make-preset 'gptel-agent gptel-agent-plist))
   (when-let* ((gptel-plan-plist (assoc-default "gptel-plan" gptel-agent--agents nil nil)))
     (apply #'gptel-make-preset 'gptel-plan gptel-plan-plist))
+  (when-let* ((coordinator-plist (assoc-default "gptel-coordinator" gptel-agent--agents nil nil)))
+    (apply #'gptel-make-preset 'gptel-coordinator coordinator-plist))
   gptel-agent--agents)
 
 ;;; Sub-agent definition parsers for Markdown and Org
