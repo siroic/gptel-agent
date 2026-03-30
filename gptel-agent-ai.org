@@ -269,3 +269,24 @@ Tools with side effects register preview functions via =gptel--tool-preview-alis
 | [[file:../gptel/gptel-remote-ai.org]] | Remote server tools | exists |
 | [[file:../gptel/gptel-archive-ai.org]] | Archive searcher agent context | exists |
 | [[file:../gptel/gptel-ai.org]] | gptel core (parent package) | exists |
+
+* TODOs
+
+** TODO Advisor agent for context management
+- An Opus-tier agent that can read and edit the coordinator's conversation buffer
+- Purpose: optimize weak-model context by summarizing/cleaning assistant messages
+- Requires new infrastructure:
+  - A hook in the gptel FSM between turns (post-response, pre-next-request)
+  - Buffer parsing/editing functions for safe org conversation modification
+  - Marking which parts the advisor can touch (assistant-only, not user/system)
+  - Handling of tool call/result blocks embedded in assistant responses
+- Could also be enabled for other weak agents (researcher on local models)
+- Consider simpler alternatives first:
+  - Sliding-window =:pre= hook that summarizes history into system message prefix
+  - =gptel--num-messages-to-send= to limit context (already supported, zero effort)
+
+** TODO Test gptel-coordinator with local models
+- Verify tool-calling reliability with qwen3.5:27b (hippo_smart)
+- Test that subagent-models resolution works correctly
+- Check if local models can parse tool results and generate correct tool calls
+- If tool calling is unreliable, the coordinator approach needs rethinking
