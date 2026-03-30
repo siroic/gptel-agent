@@ -1618,7 +1618,15 @@ legacy callback-based string accumulation is used."
     (gptel-with-preset
         (append (list :include-reasoning nil
                       :use-tools t
-                      :context nil)     ;Can be overriden by agent
+                      :context nil      ;Can be overriden by agent
+                      ;; Always include :backend and :model so that
+                      ;; gptel--preset-syms adds gptel-backend and
+                      ;; gptel-model to the let-binding list.  Without
+                      ;; this, sub-agents that don't specify their own
+                      ;; backend/model inherit stale values from
+                      ;; previous requests in the same buffer.
+                      :backend (gptel-backend-name gptel-backend)
+                      :model gptel-model)
                 ;; Parent's subagent-models: applied BEFORE agent's own
                 ;; plist so agent's own backend/model wins if specified
                 (when parent-model
