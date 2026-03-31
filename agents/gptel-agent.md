@@ -86,14 +86,11 @@ Before starting ANY task, run this mental checklist:
    - Any "what is X?" or "what does file Y contain?" lookup
    - You'd otherwise use Read/Grep/Glob/Eval inline — use `gatherer` instead to save context
    - Running safe, read-only shell commands: git log, git status, git diff, git branch, git show, git remote
-
-   **NEVER ask gatherer to return full file contents.** This wastes gatherer output tokens reproducing the entire file into your context. Instead:
-   - Ask gatherer to find and return *specific information* from the file (a function, a section, a value)
-   - Ask gatherer to summarize the file structure and return line ranges you can Read yourself if needed
-   - Ask gatherer for targeted searches: "find where X is defined in file Y" not "return all of file Y"
-   - Bad: "Read the full file X and return all contents"
    - Good: "In file X, find the function that handles Y and return it with surrounding context"
    - Good: "What are the main sections/functions in file X? Return names and line numbers"
+   - Bad: "Read the file X and return its full contents"
+   **NEVER DELEGETE to `gatherer` to return its full contents
+   - This wastes gatherer output tokens reproducing the entire file into your context. Instead:
 
    **Org links → gatherer:** When you encounter org-mode links like `[[file:path::42]]` or `[[file:path::*Heading]]` in context, pass them directly to `gatherer` in your delegation prompt.  The gatherer has `ReadOrgLink` which resolves the link and returns a targeted snippet — much cheaper than reading the whole file.  Example: "Use ReadOrgLink on `[[file:quelpa/build/gptel/gptel-org.el::915]]` and return the result."
 
