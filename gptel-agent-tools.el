@@ -1617,13 +1617,33 @@ Looks up the currently active preset (the parent/calling agent) in
 an entry matching AGENT-TYPE.
 
 Returns a plist (:backend BACKEND :model MODEL) if found, nil otherwise."
-  (when-let* ((parent-name (and (boundp 'gptel--preset) gptel--preset
-                                (symbol-name gptel--preset)))
-              (parent-plist (cdr (assoc parent-name gptel-agent--agents)))
-              (subagent-models (plist-get parent-plist :subagent-models))
-              (agent-key (intern (concat ":" agent-type)))
-              (model-name (plist-get subagent-models agent-key)))
-    (gptel-agent--resolve-model model-name)))
+  (when gptel-log-level
+    (gptel--log
+     (format "get-parent-subagent-model: agent-type=%s gptel--preset=%s (bound=%s)"
+             agent-type
+             (and (boundp 'gptel--preset) gptel--preset)
+             (boundp 'gptel--preset))
+     "preset-debug" t))
+  (let ((result
+         (when-let* ((parent-name (and (boundp 'gptel--preset) gptel--preset
+                                       (symbol-name gptel--preset)))
+                     (parent-plist (cdr (assoc parent-name gptel-agent--agents)))
+                     (subagent-models (plist-get parent-plist :subagent-models))
+                     (agent-key (intern (concat ":" agent-type)))
+                     (model-name (plist-get subagent-models agent-key)))
+           (gptel-agent--resolve-model model-name))))
+    (when gptel-log-level
+      (gptel--log
+       (format "get-parent-subagent-model: result=%s (parent=%s, subagent-models=%s)"
+               result
+               (and (boundp 'gptel--preset) gptel--preset
+                    (symbol-name gptel--preset))
+               (and (boundp 'gptel--preset) gptel--preset
+                    (plist-get (cdr (assoc (symbol-name gptel--preset)
+                                           gptel-agent--agents))
+                               :subagent-models)))
+       "preset-debug" t))
+    result))
 
 (defun gptel-agent--task (main-cb agent-type description prompt)
   "Call a gptel agent to do specific compound tasks.
@@ -1637,9 +1657,21 @@ When `gptel-org-agent-subtrees' is enabled and we're in an org-mode
 buffer, the sub-agent's conversation is written into a dedicated
 child subtree via an indirect buffer (subtree mode).  Otherwise, the
 legacy callback-based string accumulation is used."
+  (when gptel-log-level
+    (gptel--log
+     (format "agent--task entry: agent-type=%s gptel--preset=%s backend=%s model=%s"
+             agent-type gptel--preset
+             (and gptel-backend (gptel-backend-name gptel-backend))
+             gptel-model)
+     "preset-debug" t))
   (let ((model-override (gptel-agent--get-model-override agent-type))
         (parent-model (gptel-agent--get-parent-subagent-model agent-type))
         (work-dir default-directory))
+    (when gptel-log-level
+      (gptel--log
+       (format "agent--task overrides: agent-type=%s model-override=%s parent-model=%s"
+               agent-type model-override parent-model)
+       "preset-debug" t))
     (gptel-with-preset
         (append (list :include-reasoning nil
                       :use-tools t
@@ -1666,6 +1698,13 @@ legacy callback-based string accumulation is used."
                   (list :backend (gptel-backend-name
                                   (plist-get model-override :backend))
                         :model (plist-get model-override :model))))
+    (when gptel-log-level
+      (gptel--log
+       (format "agent--task after gptel-with-preset: agent-type=%s gptel--preset=%s backend=%s model=%s"
+               agent-type gptel--preset
+               (and gptel-backend (gptel-backend-name gptel-backend))
+               gptel-model)
+       "preset-debug" t))
     (let* ((info (gptel-fsm-info gptel--fsm-last))
            (where (or (plist-get info :tracking-marker)
                       (plist-get info :position)))
