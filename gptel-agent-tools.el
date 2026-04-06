@@ -1213,11 +1213,12 @@ org TODO headings instead of overlays."
       (gptel-org-agent--write-todo-org todos)
     ;; Fallback: overlay-based display for non-org or non-subtree buffers
     (let* ((info (gptel-fsm-info gptel--fsm-last))
+           (pos (plist-get info :position))
            (where-from
-            (previous-single-property-change
-             (plist-get info :position) 'gptel nil (point-min)))
-           (where-to (plist-get info :position)))
-      (unless (= where-from where-to)
+            (and pos (previous-single-property-change
+                      pos 'gptel nil (point-min))))
+           (where-to pos))
+      (unless (or (null where-from) (null where-to) (= where-from where-to))
         (pcase-let ((`(,_ . ,todo-ov)
                      (get-char-property-and-overlay where-from 'gptel-agent--todos)))
           (if todo-ov
