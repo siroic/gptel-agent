@@ -243,26 +243,26 @@ ARG-VALUES is the list of arguments for the tool call."
    (cons (rx bos (* space)
              (or "grep" "egrep" "fgrep" "rg" "ripgrep" "ag" "ack")
              (or space eol))
-         "Use the `Grep` tool instead of shell grep/rg/ag.")
+         "Use the =Grep= tool instead of shell grep/rg/ag.")
    (cons (rx bos (* space)
              "find" (or space eol))
-         "Use the `Glob` tool instead of shell find.")
+         "Use the =Glob= tool instead of shell find.")
    (cons (rx bos (* space)
              (or "ls" "dir" "tree")
              (or space eol))
-         "Use the `Glob` tool (with pattern \"*\") instead of ls/dir/tree.")
+         "Use the =Glob= tool (with pattern \"*\") instead of ls/dir/tree.")
    (cons (rx bos (* space)
              (or "cat" "head" "tail" "less" "more" "bat")
              (or space eol))
-         "Use the `Read` tool instead of cat/head/tail.")
+         "Use the =Read= tool instead of cat/head/tail.")
    (cons (rx bos (* space)
              (or "sed" "awk" "perl -pe" "perl -ne" "perl -i")
              (or space eol))
-         "Use the `Edit` tool instead of sed/awk.")
+         "Use the =Edit= tool instead of sed/awk.")
    (cons (rx bos (* space)
              (or "wc" "nl")
              (or space eol))
-         "Use the `Read` or `Grep` tool instead of wc/nl."))
+         "Use the =Read= or =Grep= tool instead of wc/nl."))
   "Alist of (REGEXP . MESSAGE) for shell commands that should use native tools.
 Each regexp is matched against the command string.")
 
@@ -275,7 +275,7 @@ Returns an error message string if a file operation is detected, nil otherwise."
         (when (string-match-p (car pattern) command)
           (setq result
                 (format "ERROR: %s\n\nDo NOT use Bash for file operations. \
-The command `%s` should not be run via Bash.\n%s"
+The command =%s= should not be run via Bash.\n%s"
                         (cdr pattern)
                         (car (split-string command " " t))
                         (cdr pattern)))
@@ -1029,7 +1029,7 @@ Raises an error if PATTERN is empty, PATH is not readable, or the
         (error "Error: path %s is not readable" path))
     (setq path "."))
   (unless (executable-find "tree")
-    (error "Error: Executable `tree` not found.  This tool cannot be used"))
+    (error "Error: Executable =tree= not found.  This tool cannot be used"))
   (let ((full-path (expand-file-name path)))
     (with-temp-buffer
       (let* ((args (list "-l" "-f" "-i" "-I" ".git"
@@ -1817,15 +1817,15 @@ This tool provides access to a Bash shell with GNU coreutils (or equivalents) av
 Use this to inspect system state, run builds, tests or other development or system administration tasks.
 
 Do NOT use this for file operations, finding, reading or editing files.
-Use the provided file tools instead: `Read`, `Write`, `Edit`, \
-`Glob`, `Grep`
+Use the provided file tools instead: =Read=, =Write=, =Edit=, \
+=Glob=, =Grep=
 
 - Quote file paths with spaces using double quotes.
 - Chain dependent commands with && (or ; if failures are OK)
 - Use absolute paths instead of cd when possible
-- For parallel commands, make multiple `Bash` calls in one message
+- For parallel commands, make multiple =Bash= calls in one message
 - Run tests, check your work or otherwise close the loop to verify changes you make.
-- Set `sudo` to true when the command needs root privileges (e.g. apt install, \
+- Set =sudo= to true when the command needs root privileges (e.g. apt install, \
 systemctl, editing /etc files).
 
 EXAMPLES:
@@ -1836,7 +1836,7 @@ EXAMPLES:
 - Install a package: command='apt install -y nginx', sudo=true
 
 DO NOT USE for: grep, find, ls, cat, head, tail, wc, sed, awk, or any \
-file search/read/edit commands.  Use `Grep`, `Glob`, `Read`, `Edit` instead.
+file search/read/edit commands.  Use =Grep=, =Glob=, =Read=, =Edit= instead.
 
 The command will be executed in the current working directory.  Output is
 returned as a string.  Long outputs should be filtered/limited using pipes."
@@ -1897,8 +1897,8 @@ compatible with `read' where possible.  Some forms have no printed
 representation that can be read and will be represented with
 #<hash-notation> instead.
 
-Output from `print`, `prin1`, and `princ` is captured and returned as STDOUT.
-Use `print` for diagnostic output, not `message` (which goes to *Messages* buffer
+Output from =print=, =prin1=, and =princ= is captured and returned as STDOUT.
+Use =print= for diagnostic output, not =message= (which goes to *Messages* buffer
 and is not captured).
 
 You can use this to quickly change a user setting, check a variable, or
@@ -1913,11 +1913,11 @@ demonstrate something to the user."
 (gptel-make-tool
  :name "WebSearch"
  :function 'gptel-agent--web-search-eww
- :description "Search the web for the first five results to a query.  The query can be an arbitrary string.  Returns the top five results from the search engine as a list of plists.  Each object has the keys `:url` and `:excerpt` for the corresponding search result.
+ :description "Search the web for the first five results to a query.  The query can be an arbitrary string.  Returns the top five results from the search engine as a list of plists.  Each object has the keys =:url= and =:excerpt= for the corresponding search result.
 
 This tool uses the Emacs web browser (eww) with its default search engine (typically DuckDuckGo) to perform searches. No API key is required.
 
-If required, consider using the url as the input to the `Read` tool to get the contents of the url.  Note that this might not work as the `Read` tool does not handle javascript-enabled pages."
+If required, consider using the url as the input to the =Read= tool to get the contents of the url.  Note that this might not work as the =Read= tool does not handle javascript-enabled pages."
  :args '((:name "query"
                 :type string
                 :description "The natural language search query, can be multiple words.")
@@ -1962,7 +1962,7 @@ If required, consider using the url as the input to the `Read` tool to get the c
  :description "Collect all code diagnostics with severity high/medium \
 across all open buffers in the current project.
 
-With optional argument `all`, collect notes and low-severity diagnostics
+With optional argument =all=, collect notes and low-severity diagnostics
 too."
  :function #'gptel-agent--flymake-diagnostics
  :args (list '( :name "all"
@@ -1992,20 +1992,20 @@ too."
  :description
  "Replace text in one or more files.
 
-To edit a single file, provide the file `path`.
+To edit a single file, provide the file =path=.
 
 For the replacement, there are two methods:
-- Short replacements: Provide both `old_str` and `new_str`, in which case `old_str` \
+- Short replacements: Provide both =old_str= and =new_str=, in which case =old_str= \
 needs to exactly match one unique section of the original file, including any whitespace.  \
 Make sure to include enough context that the match is not ambiguous.  \
-The entire original string will be replaced with `new str`.
-- Long or involved replacements: set the `diff` parameter to true and provide a unified diff \
-in `new_str`. `old_str` can be ignored.
+The entire original string will be replaced with =new str=.
+- Long or involved replacements: set the =diff= parameter to true and provide a unified diff \
+in =new_str=. =old_str= can be ignored.
 
 To edit multiple files,
 - provide the directory path,
-- set the `diff` parameter to true
-- and provide a unified diff in `new_str`.
+- set the =diff= parameter to true
+- and provide a unified diff in =new_str=.
 
 Diff instructions:
 
@@ -2026,7 +2026,7 @@ To simply insert text at some line, use the \"Insert\" instead."
            :description "Replacement string OR unified diff text"
            :type string)
          ( :name "diff"
-           :description "Whether the replacement is a string or a diff.  `true` for a diff, `false` otherwise."
+           :description "Whether the replacement is a string or a diff.  =true= for a diff, =false= otherwise."
            :type boolean))
  :category "gptel-agent"
  :confirm t
@@ -2034,7 +2034,7 @@ To simply insert text at some line, use the \"Insert\" instead."
 
 (gptel-make-tool
  :name "Insert"
- :description "Insert `new_str` after `line_number` in file at `path`.
+ :description "Insert =new_str= after =line_number= in file at =path=.
 
 Use this tool for purely additive actions: adding text to a file at a \
 specific location with no changes to the surrounding context."
@@ -2043,12 +2043,12 @@ specific location with no changes to the surrounding context."
            :description "Path of file to edit."
            :type string)
          ( :name "line_number"
-           :description "The line number at which to insert `new_str`, with
+           :description "The line number at which to insert =new_str=, with
 - 0 to insert at the beginning, and
 - -1 to insert at the end."
            :type integer)
          ( :name "new_str"
-           :description "String to insert at `line_number`."
+           :description "String to insert at =line_number=."
            :type string))
  :category "gptel-agent"
  :confirm t
@@ -2080,7 +2080,7 @@ Consider using the more granular tools \"Insert\" or \"Edit\" first."
   The glob applies to the basename of the file (with extension).
 - Does not support double wildcard \"**/*\".
 - Returns matching file paths at all depths sorted by modification time.
-  Limit the depth of the search by providing the `depth` argument.
+  Limit the depth of the search by providing the =depth= argument.
 - When you are doing an open ended search that may require multiple rounds
   of globbing and grepping, use the \"task\" tool instead
 - You can call multiple tools in a single response.  It is always better to
@@ -2103,7 +2103,7 @@ Use \"*\" to list all files in a directory.")
 
 (gptel-make-tool
  :name "Read"
- :description "Read file contents between specified line numbers `start_line` and `end_line`,
+ :description "Read file contents between specified line numbers =start_line= and =end_line=,
 with both ends included.
 
 Consider using the \"Grep\" tool to find the right range to read first.
@@ -2128,13 +2128,13 @@ Files over 512 KB in size can only be read by specifying a line range."
 
 (gptel-make-tool
  :name "Grep"
- :description "Search for text in file(s) at `path`.
+ :description "Search for text in file(s) at =path=.
 
 Use this tool to find relevant parts of files to read.
 
 Returns a list of matches prefixed by the line number, and grouped by file.  Can search an individual file (if providing a file path) or a directory.  Consider using this tool to find the right line range for the \"Read\" tool.
 
-When searching directories, optionally restrict the types of files in the search with a `glob`.  Can request context lines around each match using the `context_lines` parameters."
+When searching directories, optionally restrict the types of files in the search with a =glob=.  Can request context lines around each match using the =context_lines= parameters."
  :function #'gptel-agent--grep
  :args '(( :name "regex"
            :description "Regular expression to search for in file contents."
@@ -2162,7 +2162,7 @@ Optional, defaults to 0."
  :description "Create and manage a structured task list for your current session.  \
 Helps track progress and organize complex tasks. Use proactively for multi-step work.
 
-Only one todo can be `in_progress` at a time."
+Only one todo can be =in_progress= at a time."
  :function #'gptel-agent--write-todo
  :args
  '(( :name "todos"
@@ -2198,9 +2198,9 @@ When to use:
 How to use:
 - Invoke with the skill name and optional args.  The args are for your reference only
 - Examples:
-    - `skill: \"pdf\"` - invoke the pdf skill
-    - `skill: \"commit\", args: \"-m 'Fix bug'\"` - invoke with arguments
-    - `skill: \"review-pr\", args: \"123\"` - invoke with arguments"
+    - =skill: \"pdf\"= - invoke the pdf skill
+    - =skill: \"commit\", args: \"-m 'Fix bug'\"= - invoke with arguments
+    - =skill: \"review-pr\", args: \"123\"= - invoke with arguments"
  :function #'gptel-agent--get-skill
  :args '(( :name "skill"
            :type string

@@ -240,7 +240,7 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
                        unless (or (string= (car entry) name)
                                   (string= (car entry) "gptel-agent")
                                   (string= (car entry) "gptel-plan"))
-                       collect (format "`%s`: %s\n"
+                       collect (format "=%s=: %s\n"
                                        (car entry) (plist-get (cdr entry) :description))
                        into agent-list
                        finally return (apply #'concat agent-list)))

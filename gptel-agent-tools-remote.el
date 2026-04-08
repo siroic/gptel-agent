@@ -503,7 +503,7 @@ match exactly once (be unique). Use RemoteRead first to see the file."
  :function #'gptel-agent--remote-glob
  :description "Find files matching a pattern on a remote server.
 
-Uses `find` on the remote host to locate files by name pattern.
+Uses =find= on the remote host to locate files by name pattern.
 Results are sorted by modification time (newest first)."
  :args '((:name "host"
           :type string
@@ -569,7 +569,7 @@ since the remote host may not have ripgrep installed."
  :function #'gptel-agent--service-status
  :description "Check the status of a systemd service on a remote server.
 
-Returns the output of `systemctl status <service>`. Includes active state,
+Returns the output of =systemctl status <service>=. Includes active state,
 logs, and process information."
  :args '((:name "host"
           :type string
@@ -592,7 +592,7 @@ logs, and process information."
  :function #'gptel-agent--service-control
  :description "Control a systemd service on a remote server.
 
-Runs `systemctl <action> <service>` as root (always uses sudo).
+Runs =systemctl <action> <service>= as root (always uses sudo).
 Available actions: start, stop, restart, reload, enable, disable.
 
 Always check ServiceStatus first to understand the current state."
