@@ -46,7 +46,30 @@ Agent Definition File (Markdown/Org)
 
 ** Agent Definition Format
 
-Agents are defined in Markdown files with YAML frontmatter:
+Agents are defined in Org files with a =:PROPERTIES:= drawer (preferred)
+or Markdown files with YAML frontmatter (legacy).
+
+*** Org Format (current)
+
+#+begin_example
+:PROPERTIES:
+:name: my-agent
+:description: Does specific things
+:tools: Read Write Bash
+:model: claude-sonnet-4-20250514
+:max-tokens: 8192
+:backend: Claude
+:subagent-models: (:gatherer "Claude/claude-haiku-4-5-20251001" :researcher "Claude/claude-sonnet-4-6")
+:pre: (lambda () (require 'gptel-agent-tools-org))
+:END:
+
+System prompt text goes here as the body (org markup).
+
+{{AGENTS}} — expanded to list of available agents
+{{SKILLS}} — expanded to list of available skills
+#+end_example
+
+*** Markdown Format (legacy)
 
 #+begin_example
 ---
@@ -57,22 +80,32 @@ tools:
   - Write
   - Bash
 model: claude-sonnet-4-20250514
-max-tokens: 8192
 ---
 
-System prompt text goes here as the body.
-
-{{AGENTS}} — expanded to list of available agents
-{{SKILLS}} — expanded to list of available skills
+System prompt body in markdown.
 #+end_example
 
-Key frontmatter properties:
-- =name=, =description= — identity (description is mandatory)
-- =tools= — list of tool names or categories
-- =backend=, =model=, =max-tokens= — LLM config
-- =pre=, =post= — elisp functions run before/after
-- =parents= — inherit from other agents
-- =include-original-prompt= — sub-agents: include parent task context
+*** Property Reference
+
+| Property | Org Format | YAML Format | Purpose |
+|----------+------------+-------------+---------|
+| =name= | =:name: val= | =name: val= | Agent identity |
+| =description= | =:description: val= | =description: val= | Brief description (mandatory) |
+| =tools= | =:tools: A B C= (space-separated) | YAML list (=- A=) | Available tool names |
+| =backend= | =:backend: Claude= | =backend: Claude= | LLM backend |
+| =model= | =:model: name= | =model: name= | Model name |
+| =max-tokens= | =:max-tokens: 8192= | =max-tokens: 8192= | Token limit |
+| =subagent-models= | =:subagent-models: (:key "backend/model" ...)= (plist) | YAML nested object | Per-sub-agent model overrides |
+| =pre=, =post= | Elisp expression (evaluated) | Elisp expression (evaluated) | Hooks run before/after preset |
+| =parents= | Elisp list of symbols (read) | Elisp list (read) | Inherit from other presets |
+| =context= | =:context: A B C= (space-separated) | YAML list | Context sources |
+
+Notes:
+- In Org format, =:tools= and =:context= are space-separated strings (split automatically)
+- =:subagent-models= is an Elisp plist read with =read=, e.g. =(:gatherer "Claude/claude-haiku-4-5-20251001")=
+- =:pre= and =:post= are Elisp expressions evaluated with =(eval (read val) t)=
+- =:parents= is read as Elisp and interned to symbols
+- The =CATEGORY= property (added automatically by Org) is ignored
 
 ** Two-Mode Operation
 
@@ -107,31 +140,39 @@ These provide visual feedback (overlay updates) during tool execution.
 |------+-------+---------|
 | =gptel-agent.el= | main | Agent framework: definitions, presets, parser, template expansion |
 | =gptel-agent-tools.el= | main | Core tools: filesystem, web, system, delegation (Agent, TodoWrite, Skill) |
+| =gptel-agent-tools-org.el= | ext | Org-mode tools: OrgOutline, OrgHeading, ReadOrgLink |
 | =gptel-agent-tools-remote.el= | ext | Remote server tools via TRAMP SSH |
 | =gptel-agent-tools-introspection.el= | ext | Emacs introspection: symbol/source lookup, manual, eval |
 
 * Agent Definitions
 
-Located in =agents/= subdirectory. Loaded via =gptel-agent-dirs=.
+Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=.
 
 | Agent | Purpose | Tool Access |
 |-------+---------+-------------|
-| =gptel-agent= | Full agent with all tools | All |
+| =gptel-agent= | Full agent (Opus), all tools | All |
+| =gptel-coordinator= | Cost-efficient coordinator (local Ollama), delegates all work | All |
 | =gptel-plan= | Planning with read-only access | Read-only filesystem |
-| =executor= | Autonomous multi-step task execution | All tools |
-| =researcher= | Information gathering (cheap model) | Read-only file + web |
-| =introspector= | Emacs/elisp exploration | Introspection + code |
-| =remote-server= | Remote server management via SSH | Remote tools |
-| =archive-searcher= | Search archived AI task conversations | Glob, Grep, Read, Eval |
+| =executor= | Autonomous multi-step task execution (Haiku) | All tools |
+| =executor-writer= | High-quality file creation/modification (Opus) | All tools |
+| =researcher= | Codebase/web exploration (Sonnet) | Read-only file + web |
+| =researcher-deep= | Deep analysis and debugging (Opus) | Read-only file + web |
+| =gatherer= | Lightweight context lookups (Haiku) | Read-only: Glob, Grep, Read, Eval, Bash |
+| =introspector= | Emacs/elisp exploration (Sonnet) | Introspection + org tools |
+| =remote-server= | Remote server management via SSH (Haiku) | Remote tools |
+| =archive-searcher= | Search archived AI task conversations (Haiku) | Glob, Grep, Read, Eval |
 
 ** Loading Pipeline
 
 1. =gptel-agent-dirs= specifies directories to scan
-2. =gptel-agent--update-agents= discovers agent files
-3. =gptel-agent-read-file= parses each file (frontmatter + body)
+2. =gptel-agent--update-agents= discovers =.org= and =.md= files
+3. =gptel-agent-read-file= dispatches on extension:
+   - =.org= → =gptel-agent-parse-org-properties= (reads =:PROPERTIES:= drawer)
+   - =.md= → =gptel-agent-parse-markdown-frontmatter= (reads YAML frontmatter)
 4. Template expansion (={{AGENTS}}=, ={{SKILLS}}=)
-5. =gptel-make-preset= registers each agent as a gptel preset
-6. Tool enum updated to include only tools referenced by agents
+5. Three top-level agents registered as presets via =gptel-make-preset=:
+   =gptel-agent=, =gptel-plan=, =gptel-coordinator=
+6. Tool enum updated for the =Agent= tool's =:enum= (excludes top-level agents)
 
 * Tool System
 
@@ -230,14 +271,20 @@ Tools with side effects register preview functions via =gptel--tool-preview-alis
 #+begin_src elisp
 (:name "agent-name"
  :description "Brief description"
- :tools ["tool1" "tool2"]
+ :tools ("tool1" "tool2")         ; list of tool name strings
  :system "System prompt text"
- :backend BACKEND-STRUCT
+ :backend "Claude"                ; backend name string (resolved to struct on apply)
  :model "model-name"
  :max-tokens 8192
+ :subagent-models (:gatherer "Claude/claude-haiku-4-5-20251001"
+                   :researcher "Claude/claude-sonnet-4-6")
  :pre (lambda () ...)
  :post (lambda () ...))
 #+end_src
+
+=:subagent-models= maps sub-agent type keywords to ="backend/model"= strings.
+Used by =gptel-agent--get-parent-subagent-model= to override the default model
+when a parent agent spawns sub-agents.
 
 ** Tool Call Info Plist (FSM context)
 
