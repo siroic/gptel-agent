@@ -1302,10 +1302,14 @@ the known skills as string ready to be included to the context."
                  (cons (file-relative-name full-path skill-dir-expanded)
                        full-path))
                (directory-files-recursively skill-dir-expanded ".*")))
-             (body (plist-get
-                    (cdr (gptel-agent-read-file
-                          (expand-file-name "SKILL.md" skill-dir)))
-                    :system)))
+             (skill-file (cond ((file-exists-p (expand-file-name "SKILL.org" skill-dir))
+                                (expand-file-name "SKILL.org" skill-dir))
+                               ((file-exists-p (expand-file-name "SKILL.md" skill-dir))
+                                (expand-file-name "SKILL.md" skill-dir))))
+             (body (and skill-file
+                        (plist-get
+                         (cdr (gptel-agent-read-file skill-file))
+                         :system))))
         (if body
             (let (start)
               (with-temp-buffer
@@ -1314,7 +1318,7 @@ the known skills as string ready to be included to the context."
                 (setq start (point))
                 (insert body)
                 (pcase-dolist (`(,rel-path . ,full-path) skill-files)
-                  (unless (string-match-p "SKILL\\.md" rel-path)
+                  (unless (string-match-p "SKILL\\.\\(org\\|md\\)" rel-path)
                     (goto-char start)
                     (while (search-forward-regexp (regexp-quote rel-path) nil t)
                       (replace-match full-path t t))))

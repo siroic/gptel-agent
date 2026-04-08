@@ -100,7 +100,7 @@ for gptel sub-agent definitions by `gptel-agent'."
   "Agent skill definition directories.
 
 Each directory listed here should contain agent skills.  An agent skill
-is a directory with at least one file named \"SKILL.md\".
+is a directory with at least one file named \"SKILL.org\" or \"SKILL.md\".
 
 Relative paths are resolved against the current directory and also
 against the project root when searching for skills.
@@ -124,7 +124,7 @@ Alist mapping agent names to a plist of agent properties.")
 
 The key is the name.  The value is a cons (LOCATION . SKILL-PLIST).
 LOCATION is path to the skill's directory.  SKILL-PLIST is the header
-of the corresponding SKILL.md as a plist.")
+of the corresponding SKILL.org or SKILL.md as a plist.")
 
 ;;;###autoload
 (defun gptel-agent-read-file (agent-file &optional templates metadata-only)
@@ -175,7 +175,7 @@ Returns an alist of (agent-name . file-path)."
   (setq gptel-agent--skills nil)
   (mapc (lambda (dir)
           (when (file-directory-p dir)
-            (dolist (skill-file (directory-files-recursively dir "SKILL\\.md"))
+            (dolist (skill-file (directory-files-recursively dir "SKILL\\.\\(org\\|md\\)"))
               (pcase-let ((`(,name . ,skill-plist) ;loading only metadata
                            (gptel-agent-read-file skill-file nil t)))
                 ;; validating skill definition
