@@ -1760,7 +1760,8 @@ legacy callback-based string accumulation is used."
             :context (gptel-agent--task-overlay where agent-type description)
             :fsm (gptel-make-fsm :table gptel-send--transitions
                                  :handlers gptel-agent-request--handlers)
-            :transforms (list #'gptel--transform-add-context)
+            :transforms (list #'gptel--transform-add-context
+                              #'gptel-org-agent--transform-org-instructions)
             :callback
             (lambda (resp info)
               (let ((ov (plist-get info :context)))
