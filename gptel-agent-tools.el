@@ -328,6 +328,18 @@ read-only commands.  Commands with sudo always require confirmation."
   (not (and (gptel-agent--bash-safe-command-p command)
             (not _sudo))))
 
+(defconst gptel-agent--safe-agent-types
+  '("gatherer" "researcher" "researcher-deep"
+    "introspector" "archive-searcher")
+  "Agent types that are read-only and safe to run without confirmation.")
+
+(defun gptel-agent--task-confirm-p (agent-type _description _prompt)
+  "Confirm function for the Agent tool.
+Returns t (require confirmation) for agents that can mutate state,
+nil for read-only agents like gatherer and researcher.
+AGENT-TYPE is the sub-agent type string."
+  (not (member agent-type gptel-agent--safe-agent-types)))
+
 (defun gptel-agent--execute-bash (callback command &optional sudo)
   "Execute COMMAND in bash and call CALLBACK with output.
 
@@ -2270,7 +2282,9 @@ Use for open-ended searches, complex research, or when uncertain about finding r
  :function #'gptel-agent--task
  :args '(( :name "subagent_type"
            :type string
-           :enum ["researcher" "introspector"]
+           :enum ["researcher" "researcher-deep" "remote-server"
+                  "introspector" "gptel-plan" "gatherer" "executor"
+                  "executor-writer" "archive-searcher"]
            :description "The type of specialized agent to use for this task")
          ( :name "description"
            :type string
@@ -2281,7 +2295,7 @@ Use for open-ended searches, complex research, or when uncertain about finding r
 Should include exactly what information the agent should return."))
  :category "gptel-agent"
  :async t
- :confirm t
+ :confirm #'gptel-agent--task-confirm-p
  :include t)
 
 (provide 'gptel-agent-tools)
