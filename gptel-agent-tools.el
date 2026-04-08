@@ -260,9 +260,9 @@ ARG-VALUES is the list of arguments for the tool call."
              (or space eol))
          "Use the =Edit= tool instead of sed/awk.")
    (cons (rx bos (* space)
-             (or "wc" "nl")
+             "nl"
              (or space eol))
-         "Use the =Read= or =Grep= tool instead of wc/nl."))
+         "Use the =Read= tool instead of nl."))
   "Alist of (REGEXP . MESSAGE) for shell commands that should use native tools.
 Each regexp is matched against the command string.")
 
@@ -281,6 +281,52 @@ The command =%s= should not be run via Bash.\n%s"
                         (cdr pattern)))
           (throw 'found t))))
     result))
+
+(defvar gptel-agent--bash-safe-patterns
+  (rx bos (* space)
+      (or
+       ;; File metadata / existence checks
+       "test " "[ " "[[ "
+       "stat " "file " "readlink "
+       ;; Counting
+       "wc "
+       ;; Path/command lookups
+       "which " "type " "command -v " "command -V "
+       "realpath " "basename " "dirname "
+       ;; System info (read-only)
+       (seq (or "uname" "hostname" "whoami" "id"
+                "date" "uptime" "nproc" "arch"
+                "locale" "true" "false")
+            (or space eol))
+       "printenv " "env "
+       ;; Disk/fs info (read-only)
+       "df " "du "
+       ;; Process info
+       "pgrep " "pidof " "ps "
+       ;; Version queries
+       "git --version" "python --version" "python3 --version"
+       "node --version" "npm --version"
+       "ruby --version" "cargo --version" "rustc --version"
+       "java -version" "javac -version"
+       ;; Hash/checksum
+       "sha256sum " "sha1sum " "md5sum " "cksum "
+       ;; Simple output
+       "echo " "printf "))
+  "Regexp matching bash commands that are safe to run without confirmation.
+These are read-only commands that don't modify system state.")
+
+(defun gptel-agent--bash-safe-command-p (command)
+  "Return non-nil if COMMAND is a safe read-only bash command.
+Safe commands can be executed without user confirmation."
+  (and (stringp command)
+       (string-match-p gptel-agent--bash-safe-patterns command)))
+
+(defun gptel-agent--bash-confirm-p (command &optional _sudo)
+  "Confirm function for the Bash tool.
+Returns t (require confirmation) for most commands, nil for safe
+read-only commands.  Commands with sudo always require confirmation."
+  (not (and (gptel-agent--bash-safe-command-p command)
+            (not _sudo))))
 
 (defun gptel-agent--execute-bash (callback command &optional sudo)
   "Execute COMMAND in bash and call CALLBACK with output.
@@ -1839,7 +1885,7 @@ EXAMPLES:
 - Check file type: 'file document.pdf'
 - Install a package: command='apt install -y nginx', sudo=true
 
-DO NOT USE for: grep, find, ls, cat, head, tail, wc, sed, awk, or any \
+DO NOT USE for: grep, find, ls, cat, head, tail, sed, awk, or any \
 file search/read/edit commands.  Use =Grep=, =Glob=, =Read=, =Edit= instead.
 
 The command will be executed in the current working directory.  Output is
@@ -1849,7 +1895,7 @@ returned as a string.  Long outputs should be filtered/limited using pipes."
            :description "The Bash command to execute.  \
 Can include pipes and standard shell operators.
 Do NOT use for file operations: no grep, find, ls, cat, head, \
-tail, wc, sed, awk.  Use the Grep, Glob, Read tools instead.
+tail, sed, awk.  Use the Grep, Glob, Read tools instead.
 Example: 'git log --oneline -10' or 'npm test'")
          ( :name "sudo"
            :type boolean
@@ -1858,7 +1904,7 @@ Use this when the command requires elevated privileges, e.g. installing \
 packages, editing system files, or managing services."
            :optional t))
  :category "gptel-agent"
- :confirm t
+ :confirm #'gptel-agent--bash-confirm-p
  :include t
  :async t)
 
