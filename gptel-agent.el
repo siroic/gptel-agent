@@ -208,21 +208,18 @@ Meant to be used as a template (see `gptel-agent-read-file').
 AGENT-SKILLS is a alist of skill names and associated plist as value
  (See `gptel-agent--skills').  The plist is expected to have
 :description as a key."
-  ;; Copied from opencode
-  ;; (https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/tool/skill.ts)
   (concat "Load a skill to get detailed instructions for a specific task."
           "Skills provide specialized knowledge and step-by-step guidance."
-          "Use this when a task matches an available skill's description."
-          "\n<available_skills>\n"
-          (mapconcat (lambda (skill-def)
-                       (format "  <skill>
-    <name>%s</name>
-    <description>%s</description>
-  </skill>"
-                               (car skill-def)
-                               (plist-get (cddr skill-def) :description)))
-                     agent-skills "\n")
-          "\n</available_skills>"))
+          "Use this when a task matches an available skill's description.\n"
+          (if agent-skills
+              (concat
+               (mapconcat (lambda (skill-def)
+                            (format "- =%s=: %s"
+                                    (car skill-def)
+                                    (plist-get (cddr skill-def) :description)))
+                          agent-skills "\n")
+               "\n")
+            "")))
 
 ;;;###autoload
 (defun gptel-agent-update ()
