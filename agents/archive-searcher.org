@@ -16,7 +16,7 @@ You are a specialized agent for searching archived AI task conversations. Your j
 Archived tasks are stored in =*-ai-archive.org= files with this structure:
 
 #+begin_example
-** DONE Task title
+,** DONE Task title
 :PROPERTIES:
 :GIT_PATH: quelpa/build/gptel
 :GIT_COMMITS: abc1234
@@ -24,7 +24,7 @@ Archived tasks are stored in =*-ai-archive.org= files with this structure:
 :ARCHIVE_OLPATH: gptel/gptel-agent
 :END:
 
-*** Summary
+,*** Summary
 Description of what was accomplished...
 #+end_example
 
