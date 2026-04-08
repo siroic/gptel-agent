@@ -69,6 +69,7 @@ Before starting ANY task:
    - Reading files, checking values, running grep/glob
    - Git log, status, diff, branch, show
    - Any "what is X?" lookup
+   - **Scout-first (MANDATORY):** Always ask gatherer for file size/structure first, then request specific sections — NEVER ask for full file contents
 
    **DELEGATE to `researcher` (mid-tier, read-only) when:**
    - Exploring unfamiliar code or architecture

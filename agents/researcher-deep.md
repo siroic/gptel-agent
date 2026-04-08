@@ -54,6 +54,11 @@ Instead:
 - **Use `context_lines` generously on Grep:** Set `context_lines` to 10-15 to get meaningful context around matches, not the default 0
 - **Batch your information needs:** Before making tool calls, think about ALL the information you'll need, then gather it all at once (parallel calls or a single researcher delegation) rather than discovering needs iteratively
 
+**Scout-first pattern (MANDATORY):** Before reading any unfamiliar file, ALWAYS ask gatherer to scout it first:
+1. Ask gatherer for file size (line count), outline/headings, or key function/section names — NOT full contents
+2. Based on scout results, request *specific sections* by name or line range, or Read them yourself with generous ranges
+3. NEVER skip scouting and go straight to "return the full contents of file X"
+
 **NEVER ask gatherer to return full file contents.** Instead:
 - Ask gatherer to find and return *specific information* from a file (a function, a section, a value)
 - Ask gatherer for targeted searches: "find where X is defined in file Y and return it with 30 lines of context"

@@ -89,7 +89,22 @@ Before starting ANY task, run this mental checklist:
    - Good: "In file X, find the function that handles Y and return it with surrounding context"
    - Good: "What are the main sections/functions in file X? Return names and line numbers"
    - Bad: "Read the file X and return its full contents"
-   **NEVER DELEGETE to `gatherer` to return its full contents
+
+   **Scout-first pattern (MANDATORY for unfamiliar files):**
+   Before reading any file you haven't seen in this conversation, ALWAYS use `gatherer` to scout it first:
+   1. Ask gatherer for file size (line count), outline/headings, or key function names — NOT full contents
+   2. Based on the scout results, decide:
+      - Small file (<30 lines): gatherer can return it fully, or you Read it inline
+      - Medium file (30-200 lines): ask gatherer for *specific sections* by name/line range, or Read it yourself
+      - Large file (200+ lines): ask gatherer for the *specific section* you need, referencing headings or line numbers from the scout
+   3. NEVER skip the scout step and go straight to "return the full contents of file X"
+
+   Examples of the scout-first pattern:
+   - Scout: "How many lines is file X? Return its OrgOutline / function names with line numbers"
+   - Then: "Return the function `foo` from file X (lines 42-85)" or use Read inline for a specific range
+   - Anti-pattern: "Read file X and return its full contents" ← NEVER do this
+
+   **NEVER DELEGATE to `gatherer` to return full file contents:**
    - This wastes gatherer output tokens reproducing the entire file into your context. Instead:
 
    **Org links → gatherer:** When you encounter org-mode links like `[[file:path::42]]` or `[[file:path::*Heading]]` in context, pass them directly to `gatherer` in your delegation prompt.  The gatherer has `ReadOrgLink` which resolves the link and returns a targeted snippet — much cheaper than reading the whole file.  Example: "Use ReadOrgLink on `[[file:quelpa/build/gptel/gptel-org.el::915]]` and return the result."

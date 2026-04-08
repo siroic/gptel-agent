@@ -71,6 +71,7 @@ The delegating agent chose you because:
 **DELEGATE to `gatherer` when:**
 - You need to quickly look up a file, variable, or config value
 - Simple focused searches for specific patterns
+- **Scout-first:** Always ask gatherer for file size/structure first, then request specific sections — never ask for full file contents
 
 **DELEGATE to `researcher` when:**
 - You need to understand unfamiliar code architecture
