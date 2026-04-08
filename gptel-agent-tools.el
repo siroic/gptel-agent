@@ -54,6 +54,7 @@
 (declare-function gptel-org-agent--setup-task-subtree "gptel-org-agent")
 (declare-function gptel-org-agent--extract-final-text "gptel-org-agent")
 (declare-function gptel-org-agent--close-indirect-buffer "gptel-org-agent")
+(declare-function gptel-org-agent--transform-org-instructions "gptel-org-agent")
 ;; gptel-org-agent.el (Phase 4 TodoWrite org integration)
 (declare-function gptel-org-agent--write-todo-org "gptel-org-agent")
 (defvar gptel-org-agent-subtrees)
@@ -1207,6 +1208,11 @@ buffer, delegates to `gptel-org-agent--write-todo-org' which creates
 org TODO headings instead of overlays."
   (setq gptel-agent--todos todos)
   ;; Dispatch: org headings when subtrees are active, overlays otherwise
+  (message "[gptel-todo] write-todo dispatch: subtrees=%S org-mode=%S write-fn=%S buf=%S"
+           (bound-and-true-p gptel-org-agent-subtrees)
+           (derived-mode-p 'org-mode)
+           (fboundp 'gptel-org-agent--write-todo-org)
+           (buffer-name))
   (if (and (bound-and-true-p gptel-org-agent-subtrees)
            (derived-mode-p 'org-mode)
            (fboundp 'gptel-org-agent--write-todo-org))
@@ -1734,7 +1740,8 @@ legacy callback-based string accumulation is used."
                     :context task-ov
                     :fsm (gptel-make-fsm :table gptel-send--transitions
                                          :handlers gptel-agent-subtree--handlers)
-                    :transforms (list #'gptel--transform-add-context))))
+                    :transforms (list #'gptel--transform-add-context
+                                      #'gptel-org-agent--transform-org-instructions))))
             ;; Store sub-agent metadata in the FSM info for the DONE/ERRS/ABRT
             ;; handlers.  This is safe because Emacs is single-threaded and the
             ;; async callback hasn't fired yet.
