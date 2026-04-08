@@ -467,7 +467,8 @@ Signals an error if:
                 (pcase key
                   ((or :pre :post) (plist-put props-plist key (eval (read val) t)))
                   (:parents (plist-put props-plist key
-                                       (mapcar #'intern (ensure-list (read val)))))))))
+                                       (mapcar #'intern (ensure-list (read val)))))
+                  (:subagent-models (plist-put props-plist key (read val)))))))
 
           ;; If only metadata requested, return the props plist (ignore templates)
           (if metadata-only
