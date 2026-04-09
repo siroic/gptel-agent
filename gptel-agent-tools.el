@@ -333,7 +333,7 @@ read-only commands.  Commands with sudo always require confirmation."
     "introspector" "archive-searcher" "handover")
   "Agent types that are read-only and safe to run without confirmation.")
 
-(defun gptel-agent--task-confirm-p (agent-type _description _prompt)
+(defun gptel-agent--task-confirm-p (agent-type _description _prompt &rest _)
   "Confirm function for the Agent tool.
 Returns t (require confirmation) for agents that can mutate state,
 nil for read-only agents like gatherer and researcher.
