@@ -330,7 +330,7 @@ read-only commands.  Commands with sudo always require confirmation."
 
 (defconst gptel-agent--safe-agent-types
   '("gatherer" "researcher" "researcher-deep"
-    "introspector" "archive-searcher")
+    "introspector" "archive-searcher" "handover")
   "Agent types that are read-only and safe to run without confirmation.")
 
 (defun gptel-agent--task-confirm-p (agent-type _description _prompt)
@@ -1445,17 +1445,63 @@ RESULT-TEXT is either the extracted response or nil on failure."
   "Handle successful completion of a sub-agent subtree task.
 
 Extract the final response from the indirect buffer, clean up
-resources, and call main-cb with the result.  FSM is the sub-agent's
-state machine."
-  (let* ((cleanup (gptel-agent-subtree--cleanup fsm))
-         (main-cb (car cleanup))
-         (result (cdr cleanup)))
-    (when main-cb
-      (funcall main-cb
-               (or result
-                   (format "Error: %s sub-agent completed but produced no output."
-                           (plist-get (gptel-fsm-info fsm) :agent-type)))))))
+resources, and call main-cb with the result.  For handover tasks,
+create a new AI-DO sibling heading instead of returning text.
+FSM is the sub-agent's state machine."
+  (if (plist-get (gptel-fsm-info fsm) :agent-handover)
+      (gptel-agent-subtree--handle-handover fsm)
+    (let* ((cleanup (gptel-agent-subtree--cleanup fsm))
+           (main-cb (car cleanup))
+           (result (cdr cleanup)))
+      (when main-cb
+        (funcall main-cb
+                 (or result
+                     (format "Error: %s sub-agent completed but produced no output."
+                             (plist-get (gptel-fsm-info fsm) :agent-type))))))))
 
+
+(defun gptel-agent-subtree--handle-handover (fsm)
+  "Handle completion of a handover sub-agent task.
+
+Instead of returning the result text to the parent agent, create a new
+AI-DO sibling heading at the parent task's level with the handover
+agent's output as the body.  The calling agent receives a confirmation
+message.
+
+FSM is the sub-agent's state machine."
+  (let* ((info (gptel-fsm-info fsm))
+         (main-cb (plist-get info :agent-main-cb))
+         (indirect-buf (plist-get info :agent-indirect-buffer))
+         (ov (plist-get info :context))
+         (description (plist-get info :agent-description))
+         (result-text
+          (when (and indirect-buf (buffer-live-p indirect-buf))
+            (gptel-org-agent--extract-final-text indirect-buf)))
+         ;; Get the base buffer for writing the sibling heading
+         (base-buf (when (and indirect-buf (buffer-live-p indirect-buf))
+                     (buffer-base-buffer indirect-buf))))
+    ;; Close the indirect buffer (fold the handover agent subtree)
+    (when (and indirect-buf (buffer-live-p indirect-buf))
+      (gptel-org-agent--close-indirect-buffer indirect-buf t))
+    ;; Clean up the task overlay
+    (when (and ov (overlayp ov) (overlay-buffer ov))
+      (delete-overlay ov))
+    ;; Create the handover heading in the base buffer
+    (if (and result-text base-buf (buffer-live-p base-buf))
+        (progn
+          (with-current-buffer base-buf
+            (gptel-org-agent--create-handover-heading
+             result-text description))
+          ;; Return a confirmation to the parent agent
+          (when main-cb
+            (funcall main-cb
+                     (format "Handover complete: created new AI-DO task heading \"%s\"."
+                             description))))
+      ;; Fallback: no result text, report error
+      (when main-cb
+        (funcall main-cb
+                 (format "Error: Handover agent completed but produced no output for task \"%s\"."
+                         description))))))
 (defun gptel-agent-subtree--handle-error (fsm)
   "Handle error in a sub-agent subtree task.
 
@@ -1714,7 +1760,7 @@ Returns a plist (:backend BACKEND :model MODEL) if found, nil otherwise."
        "preset-debug" t))
     result))
 
-(defun gptel-agent--task (main-cb agent-type description prompt)
+(defun gptel-agent--task (main-cb agent-type description prompt &optional handover)
   "Call a gptel agent to do specific compound tasks.
 
 MAIN-CB is the main callback to return a value to the main loop.
@@ -1811,7 +1857,9 @@ legacy callback-based string accumulation is used."
               (plist-put sub-info :agent-main-cb main-cb)
               (plist-put sub-info :agent-indirect-buffer indirect-buf)
               (plist-put sub-info :agent-type agent-type)
-              (plist-put sub-info :agent-description description)))
+              (plist-put sub-info :agent-description description)
+              (when (and handover (not (eq handover :json-false)))
+                (plist-put sub-info :agent-handover t))))
         ;; ---- LEGACY MODE ----
         ;; Callback-based string accumulation (original behavior).
         ;; No indirect buffer; the agent's response is accumulated in a
@@ -2284,7 +2332,7 @@ Use for open-ended searches, complex research, or when uncertain about finding r
            :type string
            :enum ["researcher" "researcher-deep" "remote-server"
                   "introspector" "gptel-plan" "gatherer" "executor"
-                  "executor-writer" "archive-searcher"]
+                  "executor-writer" "archive-searcher" "handover"]
            :description "The type of specialized agent to use for this task")
          ( :name "description"
            :type string
@@ -2292,7 +2340,11 @@ Use for open-ended searches, complex research, or when uncertain about finding r
          ( :name "prompt"
            :type "string"
            :description "The detailed task for the agent to perform autonomously.  \
-Should include exactly what information the agent should return."))
+Should include exactly what information the agent should return.")
+         ( :name "handover"
+           :type boolean
+           :description "If true, the sub-agent's output creates a new AI-DO sibling heading at the parent task level instead of returning text to the caller.  The current task continues normally.  Use for escalation: triage agent gathers context, then hands over to a specialist agent that creates a detailed plan as a new task."
+           :optional t))
  :category "gptel-agent"
  :async t
  :confirm #'gptel-agent--task-confirm-p
