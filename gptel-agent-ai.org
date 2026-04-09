@@ -152,7 +152,7 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | Agent | Purpose | Tool Access |
 |-------+---------+-------------|
 | =gptel-agent= | Full agent (Opus), all tools | All |
-| =gptel-coordinator= | Cost-efficient coordinator (local Ollama), delegates all work | All |
+| =gptel-triage= | Lightweight triage agent (local Ollama), gathers context and hands off to specialists | All |
 | =gptel-plan= | Planning with read-only access | Read-only filesystem |
 | =executor= | Autonomous multi-step task execution (Haiku) | All tools |
 | =executor-writer= | High-quality file creation/modification (Opus) | All tools |
@@ -173,7 +173,7 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
    - =.md= → =gptel-agent-parse-markdown-frontmatter= (reads YAML frontmatter)
 4. Template expansion (={{AGENTS}}=, ={{SKILLS}}=)
 5. Three top-level agents registered as presets via =gptel-make-preset=:
-   =gptel-agent=, =gptel-plan=, =gptel-coordinator=
+   =gptel-agent=, =gptel-plan=, =gptel-triage=
 6. Tool enum updated for the =Agent= tool's =:enum= (excludes top-level agents)
 
 * Tool System
@@ -340,7 +340,7 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
   - Sliding-window =:pre= hook that summarizes history into system message prefix
   - =gptel--num-messages-to-send= to limit context (already supported, zero effort)
 
-** TODO Test gptel-coordinator with local models
+** TODO Test gptel-triage with local models
 - Verify tool-calling reliability with qwen3.5:27b (hippo_smart)
 - Test that subagent-models resolution works correctly
 - Check if local models can parse tool results and generate correct tool calls
