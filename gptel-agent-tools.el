@@ -1830,7 +1830,21 @@ legacy callback-based string accumulation is used."
                  (gptel-org-agent--setup-task-subtree agent-type description)))
            (prompt-with-dir
             (format "Current working directory: %s\nAll relative paths in tool calls are relative to this directory. Do NOT change directory or resolve the working directory.\n\n%s"
-                    work-dir prompt)))
+                    work-dir prompt))
+           ;; For handover mode: extract the parent TODO heading content
+           ;; so the handover agent can read the triage agent's findings.
+           ;; The triage agent only passes the task description, not its
+           ;; findings — the handover agent reads them from the org document.
+           (prompt-with-dir
+            (if (and handover (not (eq handover :json-false))
+                     (fboundp 'gptel-org-agent--extract-parent-context))
+                (let ((parent-context
+                       (gptel-org-agent--extract-parent-context)))
+                  (if parent-context
+                      (format "%s\n\n== Parent task context (triage agent findings) ==\n\n%s\n\n== End of parent task context =="
+                              prompt-with-dir parent-context)
+                    prompt-with-dir))
+              prompt-with-dir)))
       (gptel--update-status " Calling Agent..." 'font-lock-escape-face)
       (if subtree-info
           ;; ---- SUBTREE MODE ----
