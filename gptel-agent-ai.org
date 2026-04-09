@@ -121,6 +121,7 @@ Switched via header-line buttons in agent buffers.
 - Task overlay shows progress (Waiting → Calling Tools → Complete)
 - Result returned as text to parent agent
 - Each sub-agent type has its own agent definition file
+- *Handover mode*: when =handover=true=, the sub-agent's output creates a new =AI-DO= sibling heading instead of returning text to the caller.  Parent TODO content is auto-injected into the handover agent's prompt so it can read the triage agent's findings.  Used for escalation workflows (triage → specialist).
 
 ** Custom FSM Handlers
 
@@ -161,6 +162,7 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | =introspector= | Emacs/elisp exploration (Sonnet) | Introspection + org tools |
 | =remote-server= | Remote server management via SSH (Haiku) | Remote tools |
 | =archive-searcher= | Search archived AI task conversations (Haiku) | Glob, Grep, Read, Eval |
+| =handover= | Handover plan writer (Opus), reads triage context | Read-only file + org tools |
 
 ** Loading Pipeline
 
@@ -191,7 +193,7 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | =Bash= | yes | yes | Execute shell commands |
 | =Eval= | no | no | Evaluate elisp expression |
 | =Diagnostics= | no | no | Get buffer diagnostics (flymake/flycheck) |
-| =Agent= | yes | no | Delegate to sub-agent |
+| =Agent= | yes | no | Delegate to sub-agent (supports =handover= param) |
 | =TodoWrite= | no | no | Create/update task list |
 | =Skill= | no | no | Load skill instructions |
 | =WebSearch= | yes | no | Search the web |
@@ -286,6 +288,9 @@ Tools with side effects register preview functions via =gptel--tool-preview-alis
 Used by =gptel-agent--get-parent-subagent-model= to override the default model
 when a parent agent spawns sub-agents.
 
+=:agent-handover= is a runtime-only boolean set on the FSM info plist when a
+sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM context)]].
+
 ** Tool Call Info Plist (FSM context)
 
 #+begin_src elisp
@@ -295,7 +300,10 @@ when a parent agent spawns sub-agents.
  :tracking-marker MARKER
  :error ERROR-DATA
  :transformer FUNC          ; result transformer
- :post (callbacks...))
+ :post (callbacks...)
+ :agent-handover BOOL       ; when t, sub-agent uses handover completion flow
+ :agent-type STRING         ; sub-agent type name
+ :agent-description STRING) ; sub-agent task description
 #+end_src
 
 * Error Handling
