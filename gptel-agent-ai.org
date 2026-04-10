@@ -123,6 +123,17 @@ Switched via header-line buttons in agent buffers.
 - Each sub-agent type has its own agent definition file
 - *Handover mode*: when =handover=true=, the sub-agent's output creates a new =AI-DO= sibling heading instead of returning text to the caller.  Parent TODO content is auto-injected into the handover agent's prompt so it can read the triage agent's findings.  Used for escalation workflows (triage → specialist).
 
+** Org Format Instructions
+
+The prompt transform =gptel-org-agent--transform-org-instructions= (in =gptel-org-agent.el=, part of the gptel package) appends org formatting instructions to the system message.  It resolves the heading level dynamically and tells the LLM to respond in org-mode syntax.
+
+Two modes:
+
+- *Legacy (tag-based)*: AI is told to use exact heading levels (e.g. =**** Heading=).  =:assistant:= / =:user:= tags mark conversation turns.
+- *TODO keyword mode* (=gptel-org-use-todo-keywords=): AI is told to start with =* AI <title>= using level 1 headings.  A real-time auto-corrector (=gptel-org--auto-correct-stream= on =gptel-post-stream-hook=) rebases heading levels, escapes example blocks, and converts leftover markdown fences as the response streams in.
+
+The legacy tag-based approach is *deprecated* in favor of TODO keyword mode.  See [[file:../gptel/gptel-ai.org::*Discussion Structure: AI/HI Keywords]] for full details.
+
 ** Custom FSM Handlers
 
 #+begin_src elisp
@@ -324,6 +335,7 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 | [[file:../gptel/gptel-remote-ai.org]] | Remote server tools | exists |
 | [[file:../gptel/gptel-archive-ai.org]] | Archive searcher agent context | exists |
 | [[file:../gptel/gptel-ai.org]] | gptel core (parent package) | exists |
+| [[file:../gptel/gptel-ai.org::*Discussion Structure: AI/HI Keywords]] | AI/HI keyword mode, auto-corrector | exists |
 
 * TODOs
 
