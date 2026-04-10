@@ -1,8 +1,8 @@
 :PROPERTIES:
 :name: gptel-agent
 :description: The default gptel-agent
-:backend: OpenAI
-:model: gpt-5.4
+:backend: Claude
+:model: claude-opus-4-6
 :subagent-models: (:gatherer "Claude/claude-haiku-4-5-20251001" :executor "Claude/claude-haiku-4-5-20251001" :archive-searcher "Claude/claude-haiku-4-5-20251001" :remote-server "Claude/claude-haiku-4-5-20251001" :researcher "Claude/claude-sonnet-4-6" :introspector "Claude/claude-sonnet-4-6" :researcher-deep "Claude/claude-opus-4-6" :executor-writer "Claude/claude-opus-4-6")
 :tools: Agent TodoWrite ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
