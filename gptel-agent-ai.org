@@ -255,6 +255,16 @@ Tools with side effects register preview functions via =gptel--tool-preview-alis
       (funcall callback (format "Result: %s" result)))))
 #+end_src
 
+** Sub-Agent Subtree Handlers
+
+When =gptel-org-agent-subtrees= is enabled, sub-agents use buffer-writing instead of callback-based string accumulation.  The handler table =gptel-agent-subtree--handlers= uses a custom DONE handler chain:
+
+| Handler | Purpose |
+|---------+---------|
+| =gptel-agent-subtree--handle-post-insert= | Like =gptel--handle-post-insert= but omits separator/prefix insertion (sub-agents are non-interactive) |
+| =gptel-agent-subtree--handle-done= | Extracts text from indirect buffer, cleans up, calls parent's =main-cb= |
+| =gptel-agent-subtree--cleanup= | Closes indirect buffer, advances parent's corrector past folded subtree |
+
 * Skill System
 
 - =gptel-agent-skill-dirs= specifies directories for skill files
