@@ -1422,12 +1422,19 @@ RESULT-TEXT is either the extracted response or nil on failure."
   (let* ((info (gptel-fsm-info fsm))
          (main-cb (plist-get info :agent-main-cb))
          (indirect-buf (plist-get info :agent-indirect-buffer))
+         (parent-buf (plist-get info :buffer))
          (ov (plist-get info :context))
          (agent-type (plist-get info :agent-type))
          (description (plist-get info :agent-description))
          (result-text
           (when (and indirect-buf (buffer-live-p indirect-buf))
-            (gptel-org-agent--extract-final-text indirect-buf))))
+            (gptel-org-agent--extract-final-text indirect-buf)))
+         ;; Capture sub-agent subtree end position BEFORE closing the
+         ;; buffer.  Used to advance the parent's corrector past this
+         ;; subtree so it doesn't double-rebase already-correct headings.
+         (subtree-end
+          (when (and indirect-buf (buffer-live-p indirect-buf))
+            (with-current-buffer indirect-buf (point-max)))))
     ;; Prepend the agent type header to the result
     (when result-text
       (setq result-text
@@ -1436,6 +1443,22 @@ RESULT-TEXT is either the extracted response or nil on failure."
     ;; Close the indirect buffer, folding the subtree in the base buffer
     (when (and indirect-buf (buffer-live-p indirect-buf))
       (gptel-org-agent--close-indirect-buffer indirect-buf t))
+    ;; Advance the parent agent's auto-corrector past the (now folded)
+    ;; sub-agent subtree.  Without this, the corrector's final cleanup
+    ;; sweep (gptel-org--auto-correct-cleanup, which processes to
+    ;; point-max) would re-rebase the sub-agent's already-correct
+    ;; headings.
+    (when (and parent-buf (buffer-live-p parent-buf) subtree-end)
+      (with-current-buffer parent-buf
+        (when-let* ((state (bound-and-true-p gptel-org--corrector-state))
+                    (last-pos (plist-get state :last-pos))
+                    ((markerp last-pos))
+                    ((marker-position last-pos))
+                    ((< (marker-position last-pos) subtree-end)))
+          (set-marker last-pos subtree-end)
+          ;; Reset block-tracking state since we jumped over content
+          (plist-put state :in-example nil)
+          (plist-put state :in-src nil))))
     ;; Clean up the task overlay in the parent buffer
     (when (and ov (overlayp ov) (overlay-buffer ov))
       (delete-overlay ov))
@@ -1533,6 +1556,45 @@ FSM is the sub-agent's state machine."
                (format "Error: Task \"%s\" was aborted by the user. %s could not finish."
                        description agent-type)))))
 
+(defun gptel-agent-subtree--handle-post-insert (fsm)
+  "Handle post-insert for sub-agent FSM, skipping prompt prefix.
+
+Like `gptel--handle-post-insert' but omits the response separator
+and prompt prefix insertion.  Sub-agent buffers are non-interactive:
+no user prompt follows the response, so the separator (typically
+\"\\n\\n\") and prompt prefix (e.g. \"*** \") must not be inserted.
+
+Without this, the separator/prefix would:
+1. Pollute the indirect buffer with spurious heading-like text
+2. Be picked up by `gptel-org-agent--extract-final-text' (fallback)
+3. Appear as garbled headings in the base buffer"
+  (let* ((info (gptel-fsm-info fsm))
+         (start-marker (plist-get info :position))
+         (tracking-marker (or (plist-get info :tracking-marker)
+                              start-marker))
+         (gptel-buffer (marker-buffer start-marker)))
+    (with-current-buffer gptel-buffer
+      (if (not tracking-marker)
+          (when gptel-mode (gptel--update-status " Empty response" 'success))
+        (set-marker-insertion-type tracking-marker nil)
+        (when gptel-mode
+          (gptel--update-status " Ready" 'success))))
+    ;; Run post-response hooks (corrector cleanup, font-lock, etc.)
+    (if-let* ((gptel-window (get-buffer-window gptel-buffer 'visible)))
+        (with-selected-window gptel-window
+          (mapc (lambda (f) (funcall f info)) (plist-get info :post))
+          (run-hook-with-args
+           'gptel-post-response-functions
+           (marker-position start-marker) (marker-position tracking-marker)))
+      (with-current-buffer gptel-buffer
+        (mapc (lambda (f) (funcall f info)) (plist-get info :post))
+        (run-hook-with-args
+         'gptel-post-response-functions
+         (marker-position start-marker) (marker-position tracking-marker))))
+    ;; NOTE: Deliberately omit separator/prefix insertion.
+    ;; Sub-agents are non-interactive — no user prompt follows.
+    ))
+
 (defvar gptel-agent-subtree--handlers
   `((WAIT ,#'gptel-agent--indicate-wait
           ,#'gptel--handle-wait ,#'gptel--update-wait)
@@ -1542,7 +1604,7 @@ FSM is the sub-agent's state machine."
     (TOOL ,#'gptel-agent--indicate-tool-call
           ,#'gptel--handle-tool-use ,#'gptel--update-tool-ask)
     (TRET ,#'gptel--handle-post-tool ,#'gptel--handle-tool-result)
-    (DONE ,#'gptel--handle-post-insert
+    (DONE ,#'gptel-agent-subtree--handle-post-insert
           ,#'gptel-agent-subtree--handle-done ,#'gptel--fsm-last)
     (ABRT ,#'gptel-agent-subtree--handle-abort))
   "Handler table for sub-agent tasks using buffer-writing subtrees.
