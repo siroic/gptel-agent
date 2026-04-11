@@ -123,6 +123,34 @@ Switched via header-line buttons in agent buffers.
 - Each sub-agent type has its own agent definition file
 - *Handover mode*: when =handover=true=, the sub-agent's output creates a new =AI-DO= sibling heading instead of returning text to the caller.  Parent TODO content is auto-injected into the handover agent's prompt so it can read the triage agent's findings.  Used for escalation workflows (triage → specialist).
 
+** TodoWrite Org Integration
+
+When =gptel-org-agent-subtrees= is enabled in org-mode:
+
+- =TodoWrite= creates todo headings as *direct children* of the agent heading (no intermediate "Tasks" container)
+- Status mapping via =gptel-org-agent-status-keyword-map=: =pending→AI-DO=, =in_progress→AI-DOING=, =completed→AI-DONE=
+- When a task transitions to =in_progress=, =gptel-org-agent--redirect-markers-to-heading= moves the FSM's =:position= and =:tracking-marker= into that heading's subtree
+- This ensures tool results and AI text stream *under the active task heading*, not as a flat block after all todos
+- =gptel-org-agent--collect-todo-headings= uses markers (not positions) to survive keyword-length changes during =org-todo= calls
+- The function is idempotent: repeated calls with the same data produce the same structure
+
+Expected org structure:
+#+begin_example
+,*** AI-DOING My agent task :main@agent:
+,**** AI Testing with three tasks
+,***** AI-DONE Check current time
+,****** ALLOWED Requesting permission to run: Eval
+#+begin_src gptel-tool
+(Eval :expression "(current-time-string)")
+Result: "Sat Apr 11 10:49:58 2026"
+#+end_src
+,***** AI-DOING Check working directory
+(AI work streams here under the active task)
+,***** AI-DO Check Emacs version
+#+end_example
+
+In non-org buffers, TodoWrite falls back to overlay-based display.
+
 ** Org Format Instructions
 
 The prompt transform =gptel-org-agent--transform-org-instructions= (in =gptel-org-agent.el=, part of the gptel package) appends org formatting instructions to the system message.  It resolves the heading level dynamically and tells the LLM to respond in org-mode syntax.
@@ -205,7 +233,7 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | =Eval= | no | no | Evaluate elisp expression |
 | =Diagnostics= | no | no | Get buffer diagnostics (flymake/flycheck) |
 | =Agent= | yes | no | Delegate to sub-agent (supports =handover= param) |
-| =TodoWrite= | no | no | Create/update task list |
+| =TodoWrite= | no | no | Create/update task list; in org-mode creates headings under agent with FSM marker redirection |
 | =Skill= | no | no | Load skill instructions |
 | =WebSearch= | yes | no | Search the web |
 | =WebFetch= | yes | no | Fetch and extract from URL |
@@ -280,7 +308,7 @@ When =gptel-org-agent-subtrees= is enabled, sub-agents use buffer-writing instea
 |----------+------+---------|
 | =gptel-agent--agents= | alist | Known agents: =(name . plist)= |
 | =gptel-agent--skills= | alist | Known skills: =(name . (dir . plist))= |
-| =gptel-agent--todos= | list | Current task list (buffer-local) |
+| =gptel-agent--todos= | list | Current task list (buffer-local); in org-mode, synced to =AI-DO/AI-DOING/AI-DONE= headings under agent heading (no "Tasks" container) |
 
 ** Customization
 
