@@ -153,6 +153,7 @@ Returns the position at the end of the deepest heading's section
             (save-excursion
               (goto-char search-start)
               (while (and (not found)
+                          (<= (point) scope-end)
                           (re-search-forward org-heading-regexp scope-end t))
                 (beginning-of-line)
                 (when (and (org-at-heading-p)
@@ -228,9 +229,10 @@ The list is sorted by :beg in ascending order."
         (when (or (memq 'tool-blocks gptel-agent-trace-elements)
                   (memq 'reasoning-blocks gptel-agent-trace-elements))
           (goto-char agent-pos)
-          (while (re-search-forward
-                  "^[ \t]*#\\+begin_src gptel-\\(tool\\|reasoning\\)"
-                  subtree-end t)
+          (while (and (<= (point) subtree-end)
+                      (re-search-forward
+                       "^[ \t]*#\\+begin_src gptel-\\(tool\\|reasoning\\)"
+                       subtree-end t))
             (let* ((block-type (match-string 1))
                    (sym (if (string= block-type "tool")
                             'tool-block 'reasoning-block))
@@ -260,7 +262,8 @@ The list is sorted by :beg in ascending order."
         (when (and (memq 'confirm-headings gptel-agent-trace-elements)
                    confirm-kws)
           (goto-char agent-pos)
-          (while (re-search-forward org-heading-regexp subtree-end t)
+          (while (and (<= (point) subtree-end)
+                      (re-search-forward org-heading-regexp subtree-end t))
             (beginning-of-line)
             (when (org-at-heading-p)
               (let ((todo (org-get-todo-state)))
@@ -296,7 +299,8 @@ The list is sorted by :beg in ascending order."
           (goto-char agent-pos)
           (let ((state-re
                  "^[ \t]*- State \"[^\"]*\"[ \t]+from[ \t]+\"?[^\"]*\"?[ \t]+\\[.*\\][ \t]*$"))
-            (while (re-search-forward state-re subtree-end t)
+            (while (and (<= (point) subtree-end)
+                        (re-search-forward state-re subtree-end t))
               (let ((line-beg (line-beginning-position)))
                 (forward-line 1)
                 ;; Group consecutive state change lines
