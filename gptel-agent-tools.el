@@ -1850,32 +1850,42 @@ legacy callback-based string accumulation is used."
        (format "agent--task overrides: agent-type=%s model-override=%s parent-model=%s"
                agent-type model-override parent-model)
        "preset-debug" t))
-    (gptel-with-preset
-        (append (list :include-reasoning nil
-                      :use-tools t
-                      :context nil      ;Can be overriden by agent
-                      ;; Always include :backend and :model so that
-                      ;; gptel--preset-syms adds gptel-backend and
-                      ;; gptel-model to the let-binding list.  Without
-                      ;; this, sub-agents that don't specify their own
-                      ;; backend/model inherit stale values from
-                      ;; previous requests in the same buffer.
-                      :backend (gptel-backend-name gptel-backend)
-                      :model gptel-model)
-                ;; Parent's subagent-models: applied BEFORE agent's own
-                ;; plist so agent's own backend/model wins if specified
-                (when parent-model
-                  (list :backend (gptel-backend-name
-                                  (plist-get parent-model :backend))
-                        :model (plist-get parent-model :model)))
-                (cdr (assoc agent-type gptel-agent--agents))
-                ;; Model override from tags/properties: must be LAST
-                ;; because map-do in gptel--apply-preset processes all
-                ;; keys left-to-right with last-writer-wins semantics
-                (when model-override
-                  (list :backend (gptel-backend-name
-                                  (plist-get model-override :backend))
-                        :model (plist-get model-override :model))))
+    (let ((--agent-task-preset
+           (append (list :include-reasoning nil
+                         :use-tools t
+                         :context nil   ;Can be overriden by agent
+                         ;; Always include :backend and :model so that
+                         ;; gptel--preset-syms adds gptel-backend and
+                         ;; gptel-model to the let-binding list.  Without
+                         ;; this, sub-agents that don't specify their own
+                         ;; backend/model inherit stale values from
+                         ;; previous requests in the same buffer.
+                         :backend (gptel-backend-name gptel-backend)
+                         :model gptel-model)
+                   ;; Parent's subagent-models: applied BEFORE agent's own
+                   ;; plist so agent's own backend/model wins if specified
+                   (when parent-model
+                     (list :backend (gptel-backend-name
+                                     (plist-get parent-model :backend))
+                           :model (plist-get parent-model :model)))
+                   (cdr (assoc agent-type gptel-agent--agents))
+                   ;; Model override from tags/properties: must be LAST
+                   ;; because map-do in gptel--apply-preset processes all
+                   ;; keys left-to-right with last-writer-wins semantics
+                   (when model-override
+                     (list :backend (gptel-backend-name
+                                     (plist-get model-override :backend))
+                           :model (plist-get model-override :model))))))
+      (when gptel-log-level
+        (gptel--log
+         (format "agent--task composite plist: agent-type=%s plist-keys=%s :backend/:model entries=%s"
+                 agent-type
+                 (cl-loop for (k _v) on --agent-task-preset by #'cddr collect k)
+                 (cl-loop for (k v) on --agent-task-preset by #'cddr
+                          when (memq k '(:backend :model))
+                          collect (cons k v)))
+         "preset-debug" t))
+      (gptel-with-preset --agent-task-preset
     (when gptel-log-level
       (gptel--log
        (format "agent--task after gptel-with-preset: agent-type=%s gptel--preset=%s backend=%s model=%s"
@@ -1986,7 +1996,7 @@ Error details: %S"
                    (funcall main-cb
                             (format "Error: Task \"%s\" was aborted by the user. \
 %s could not finish."
-                                    description agent-type)))))))))))))
+                                    description agent-type))))))))))))))
 
 ;;; Register tool call preview functions
 
