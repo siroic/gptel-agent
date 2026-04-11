@@ -125,7 +125,7 @@ Switched via header-line buttons in agent buffers.
 
 ** TodoWrite Org Integration
 
-When =gptel-org-agent-subtrees= is enabled in org-mode:
+When =gptel-org-subtree-context= is enabled in org-mode (automatically set by =gptel-org-mode=):
 
 - =TodoWrite= creates todo headings as *direct children* of the agent heading (no intermediate "Tasks" container)
 - Status mapping via =gptel-org-agent-status-keyword-map=: =pending→AI-DO=, =in_progress→AI-DOING=, =completed→AI-DONE=
@@ -285,7 +285,7 @@ Tools with side effects register preview functions via =gptel--tool-preview-alis
 
 ** Sub-Agent Subtree Handlers
 
-When =gptel-org-agent-subtrees= is enabled, sub-agents use buffer-writing instead of callback-based string accumulation.  The handler table =gptel-agent-subtree--handlers= uses a custom DONE handler chain:
+When =gptel-org-subtree-context= is enabled, sub-agents use buffer-writing instead of callback-based string accumulation.  The handler table =gptel-agent-subtree--handlers= uses a custom DONE handler chain:
 
 | Handler | Purpose |
 |---------+---------|
@@ -376,6 +376,11 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 | [[file:../gptel/gptel-ai.org::*Discussion Structure: AI/HI Keywords]] | AI/HI keyword mode, auto-corrector | exists |
 
 * TODOs
+
+** DONE Variable rename: gptel-org-agent-subtrees → gptel-org-subtree-context
+- Renamed all 8 occurrences across =gptel-agent-tools.el= (7) and =gptel-agent-control.el= (1)
+- The gptel package had already renamed this variable; gptel-agent was using the stale name
+- This was causing =bound-and-true-p= checks to always return nil, silently disabling agent subtree features
 
 ** TODO Advisor agent for context management
 - An Opus-tier agent that can read and edit the coordinator's conversation buffer

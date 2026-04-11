@@ -57,7 +57,7 @@
 (declare-function gptel-org-agent--transform-org-instructions "gptel-org-agent")
 ;; gptel-org-agent.el (Phase 4 TodoWrite org integration)
 (declare-function gptel-org-agent--write-todo-org "gptel-org-agent")
-(defvar gptel-org-agent-subtrees)
+(defvar gptel-org-subtree-context)
 
 (defvar url-http-end-of-headers)
 (defvar gptel-agent--agents)
@@ -1261,17 +1261,17 @@ TODOS is a list of plists with keys :content, :activeForm, and :status.
 Completed items are displayed with strikethrough and shadow face.
 Exactly one item should have status \"in_progress\".
 
-When `gptel-org-agent-subtrees' is enabled and we're in an org-mode
+When `gptel-org-subtree-context' is enabled and we're in an org-mode
 buffer, delegates to `gptel-org-agent--write-todo-org' which creates
 org TODO headings instead of overlays."
   (setq gptel-agent--todos todos)
   ;; Dispatch: org headings when subtrees are active, overlays otherwise
   (message "[gptel-todo] write-todo dispatch: subtrees=%S org-mode=%S write-fn=%S buf=%S"
-           (bound-and-true-p gptel-org-agent-subtrees)
+           (bound-and-true-p gptel-org-subtree-context)
            (derived-mode-p 'org-mode)
            (fboundp 'gptel-org-agent--write-todo-org)
            (buffer-name))
-  (if (and (bound-and-true-p gptel-org-agent-subtrees)
+  (if (and (bound-and-true-p gptel-org-subtree-context)
            (derived-mode-p 'org-mode)
            (fboundp 'gptel-org-agent--write-todo-org))
       (gptel-org-agent--write-todo-org todos)
@@ -1396,7 +1396,7 @@ the known skills as string ready to be included to the context."
 
 ;;; Sub-agent subtree handlers (Phase 2)
 ;;
-;; When `gptel-org-agent-subtrees' is enabled, sub-agent tasks use
+;; When `gptel-org-subtree-context' is enabled, sub-agent tasks use
 ;; buffer-writing (like `gptel-send') instead of callback-based string
 ;; accumulation.  The LLM response is streamed directly into an indirect
 ;; buffer narrowed to the agent's subtree.
@@ -1830,7 +1830,7 @@ AGENT-TYPE is the name of the agent.
 DESCRIPTION is a short description of the task.
 PROMPT is the detailed prompt instructing the agent on what is required.
 
-When `gptel-org-agent-subtrees' is enabled and we're in an org-mode
+When `gptel-org-subtree-context' is enabled and we're in an org-mode
 buffer, the sub-agent's conversation is written into a dedicated
 child subtree via an indirect buffer (subtree mode).  Otherwise, the
 legacy callback-based string accumulation is used."
@@ -1887,7 +1887,7 @@ legacy callback-based string accumulation is used."
                       (plist-get info :position)))
            ;; Try to set up subtree mode for the sub-agent
            (subtree-info
-            (and (bound-and-true-p gptel-org-agent-subtrees)
+            (and (bound-and-true-p gptel-org-subtree-context)
                  (fboundp 'gptel-org-agent--setup-task-subtree)
                  (gptel-org-agent--setup-task-subtree agent-type description)))
            (prompt-with-dir

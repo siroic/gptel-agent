@@ -68,7 +68,7 @@
 (declare-function gptel-agent--confirm-overlay "gptel-agent-tools")
 
 ;; Variables from gptel
-(defvar gptel-org-agent-subtrees)
+(defvar gptel-org-subtree-context)
 (defvar gptel-tool-call-actions-map)
 
 
