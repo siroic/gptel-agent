@@ -48,6 +48,7 @@
 (eval-when-compile (require 'cl-lib))
 
 (declare-function org-escape-code-in-region "org-src")
+(declare-function org-entry-put "org")
 (declare-function gptel-agent-read-file "gptel-agent")
 
 ;; gptel-org-agent.el (Phase 2 sub-agent subtrees)
@@ -1914,6 +1915,7 @@ legacy callback-based string accumulation is used."
           ;; streamed directly into the indirect buffer.  On completion, the
           ;; DONE handler extracts the final text and calls main-cb.
           (let* ((indirect-buf (plist-get subtree-info :indirect-buffer))
+                 (heading-marker (plist-get subtree-info :heading-marker))
                  (pos-marker (plist-get subtree-info :position-marker))
                  (task-ov (gptel-agent--task-overlay where agent-type description))
                  (sub-fsm
@@ -1926,6 +1928,13 @@ legacy callback-based string accumulation is used."
                                          :handlers gptel-agent-subtree--handlers)
                     :transforms (list #'gptel--transform-add-context
                                       #'gptel-org-agent--transform-org-instructions))))
+            ;; Record the resolved model in the subtree heading as an
+            ;; org property so it persists after the task overlay is gone.
+            (when heading-marker
+              (org-entry-put heading-marker "GPTEL_BACKEND"
+                             (gptel-backend-name gptel-backend))
+              (org-entry-put heading-marker "GPTEL_MODEL"
+                             (gptel--model-name gptel-model)))
             ;; Store sub-agent metadata in the FSM info for the DONE/ERRS/ABRT
             ;; handlers.  This is safe because Emacs is single-threaded and the
             ;; async callback hasn't fired yet.
