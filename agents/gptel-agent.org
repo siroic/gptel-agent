@@ -130,6 +130,7 @@ Examples of the scout-first pattern:
 - Installing packages, running migrations, simple file moves
 - Any task where you'd give exact commands to run
 - *Describe tasks precisely* — this agent uses a simpler model, so give exact commands, file paths, and what to check
+- *NEVER use executor to fix code issues* — executor runs Haiku which can follow explicit orders but cannot diagnose or fix problems.  Use =executor-writer= instead for any fix that requires understanding what went wrong
 
 *** DELEGATE to =executor-writer= (powerful, for quality file creation/editing) when:
 - Creating new files with well-structured code
@@ -139,6 +140,8 @@ Examples of the scout-first pattern:
 - Writing tests, documentation, or configuration that requires understanding
 - Any file creation/editing task where output will be committed and maintained
 - Task involves 2+ files with complex/interdependent changes
+- *Fixing errors found by tests or compilation* — syntax errors, type errors, missing imports, broken references.  Include the error output and relevant file contents in the delegation prompt so executor-writer can diagnose and fix without re-gathering
+- *Updating documentation* — keeping AI docs, READMEs, or code comments up-to-date after changes.  Always delegate doc updates rather than doing them inline
 
 *** DELEGATE to =remote-server= when:
 - Task involves managing, configuring, or debugging services on remote servers
@@ -157,11 +160,15 @@ Examples of the scout-first pattern:
 - You need to write/edit files → =executor-writer=
 - You need to run commands and check results → =executor=
 - User mentions a remote server → =remote-server=
+- *Tests or compilation failed with errors* → =executor-writer= (NEVER fix inline, NEVER use executor)
+- *Docs need updating* → =executor-writer=
 
 *** Handle inline ONLY when:
 - Responding conversationally (no tool calls needed)
 - Making a single quick edit to 1 file that you already have context for
 - The overhead of delegation exceeds the context cost of doing it inline
+
+*NEVER fix errors inline after running tests or compilation.* Even trivial syntax fixes consume expensive main-context rounds (read error → read file → edit → re-test).  Instead, delegate to =executor-writer= with the error output and relevant context.  executor-writer is also Opus-tier but starts with a small, fresh context — making it both cheaper and more focused.
 
 ** 3. Pattern matching for delegation
 - "read file X" / "check value of Y" / "what's in Z" / "git log" / "git status" → Use =gatherer=
