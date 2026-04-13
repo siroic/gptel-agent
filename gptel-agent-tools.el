@@ -1444,22 +1444,6 @@ RESULT-TEXT is either the extracted response or nil on failure."
     ;; Close the indirect buffer, folding the subtree in the base buffer
     (when (and indirect-buf (buffer-live-p indirect-buf))
       (gptel-org-agent--close-indirect-buffer indirect-buf t))
-    ;; Advance the parent agent's auto-corrector past the (now folded)
-    ;; sub-agent subtree.  Without this, the corrector's final cleanup
-    ;; sweep (gptel-org--auto-correct-cleanup, which processes to
-    ;; point-max) would re-rebase the sub-agent's already-correct
-    ;; headings.
-    (when (and parent-buf (buffer-live-p parent-buf) subtree-end)
-      (with-current-buffer parent-buf
-        (when-let* ((state (bound-and-true-p gptel-org--corrector-state))
-                    (last-pos (plist-get state :last-pos))
-                    ((markerp last-pos))
-                    ((marker-position last-pos))
-                    ((< (marker-position last-pos) subtree-end)))
-          (set-marker last-pos subtree-end)
-          ;; Reset block-tracking state since we jumped over content
-          (plist-put state :in-example nil)
-          (plist-put state :in-src nil))))
     ;; Clean up the task overlay in the parent buffer
     (when (and ov (overlayp ov) (overlay-buffer ov))
       (delete-overlay ov))
