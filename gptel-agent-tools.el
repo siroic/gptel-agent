@@ -1436,6 +1436,16 @@ RESULT-TEXT is either the extracted response or nil on failure."
          (subtree-end
           (when (and indirect-buf (buffer-live-p indirect-buf))
             (with-current-buffer indirect-buf (point-max)))))
+    (when gptel-log-level
+      (gptel--log
+       (format "subtree-cleanup: agent-type=%s description=\"%s\" buf-live=%s main-cb=%s result=%s"
+               agent-type description
+               (and indirect-buf (buffer-live-p indirect-buf))
+               (if main-cb "present" "NIL")
+               (if result-text
+                   (format "present(%d chars)" (length result-text))
+                 "NIL"))
+       "agent-debug" 'no-json))
     ;; Prepend the agent type header to the result
     (when result-text
       (setq result-text
@@ -1456,11 +1466,26 @@ Extract the final response from the indirect buffer, clean up
 resources, and call main-cb with the result.  For handover tasks,
 create a new AI-DO sibling heading instead of returning text.
 FSM is the sub-agent's state machine."
+  (when gptel-log-level
+    (gptel--log
+     (format "subtree-handle-done: ENTRY fsm=%s agent-type=%s handover=%s"
+             (gptel--fsm-summary fsm)
+             (plist-get (gptel-fsm-info fsm) :agent-type)
+             (plist-get (gptel-fsm-info fsm) :agent-handover))
+     "agent-debug" 'no-json))
   (if (plist-get (gptel-fsm-info fsm) :agent-handover)
       (gptel-agent-subtree--handle-handover fsm)
     (let* ((cleanup (gptel-agent-subtree--cleanup fsm))
            (main-cb (car cleanup))
            (result (cdr cleanup)))
+      (when gptel-log-level
+        (gptel--log
+         (format "subtree-handle-done: main-cb=%s result=%s"
+                 (if main-cb "present" "NIL--DEADLOCK")
+                 (if result
+                     (format "present(%d chars)" (length result))
+                   "NIL"))
+         "agent-debug" 'no-json))
       (when main-cb
         (funcall main-cb
                  (or result
@@ -1516,21 +1541,32 @@ FSM is the sub-agent's state machine."
 Clean up resources and call main-cb with an error message.
 FSM is the sub-agent's state machine."
   (let* ((info (gptel-fsm-info fsm))
-         (cleanup (gptel-agent-subtree--cleanup fsm))
-         (main-cb (car cleanup))
          (agent-type (plist-get info :agent-type))
-         (description (plist-get info :agent-description))
          (error-data (plist-get info :error)))
-    (when main-cb
-      (funcall main-cb
-               (format "Error: Task %s could not finish task \"%s\". Error details: %S"
-                       agent-type description error-data)))))
+    (when gptel-log-level
+      (gptel--log
+       (format "subtree-handle-error: fsm=%s agent-type=%s error=%S"
+               (gptel--fsm-summary fsm) agent-type error-data)
+       "agent-debug" 'no-json))
+    (let* ((cleanup (gptel-agent-subtree--cleanup fsm))
+           (main-cb (car cleanup))
+           (description (plist-get info :agent-description)))
+      (when main-cb
+        (funcall main-cb
+                 (format "Error: Task %s could not finish task \"%s\". Error details: %S"
+                         agent-type description error-data))))))
 
 (defun gptel-agent-subtree--handle-abort (fsm)
   "Handle user abort of a sub-agent subtree task.
 
 Clean up resources and call main-cb with an abort message.
 FSM is the sub-agent's state machine."
+  (when gptel-log-level
+    (gptel--log
+     (format "subtree-handle-abort: fsm=%s agent-type=%s"
+             (gptel--fsm-summary fsm)
+             (plist-get (gptel-fsm-info fsm) :agent-type))
+     "agent-debug" 'no-json))
   (let* ((info (gptel-fsm-info fsm))
          (cleanup (gptel-agent-subtree--cleanup fsm))
          (main-cb (car cleanup))
