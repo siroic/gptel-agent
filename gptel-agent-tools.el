@@ -1617,12 +1617,11 @@ Without this, the separator/prefix would:
     ))
 
 (defvar gptel-agent-subtree--handlers
-  `((WAIT ,#'gptel-agent--indicate-wait
-          ,#'gptel--handle-wait ,#'gptel--update-wait)
+  `((WAIT ,#'gptel--handle-wait ,#'gptel--update-wait)
     (TYPE ,#'gptel--handle-pre-insert)
     (ERRS ,#'gptel-agent-subtree--handle-error ,#'gptel--fsm-last)
     (TPRE ,#'gptel--handle-pre-tool ,#'gptel--fsm-transition)
-    (TOOL ,#'gptel-agent--indicate-tool-call
+    (TOOL ,#'gptel--update-tool-call
           ,#'gptel--handle-tool-use ,#'gptel--update-tool-ask)
     (TRET ,#'gptel--handle-post-tool ,#'gptel--handle-tool-result)
     (DONE ,#'gptel-agent-subtree--handle-post-insert
@@ -1631,9 +1630,9 @@ Without this, the separator/prefix would:
   "Handler table for sub-agent tasks using buffer-writing subtrees.
 
 Combines `gptel-send--handlers' (buffer insertion via TYPE/DONE) with
-`gptel-agent-request--handlers' (agent indicator overlays for WAIT/TOOL),
-plus custom DONE/ERRS/ABRT handlers that extract text from the indirect
-buffer and call the parent agent's main-cb.")
+mode-line status updates for WAIT/TOOL, plus custom DONE/ERRS/ABRT
+handlers that extract text from the indirect buffer and call the
+parent agent's main-cb.")
 
 (defun gptel-agent--task-preview-setup (arg-values _info)
   "Preview setup for Agent.
