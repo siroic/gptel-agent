@@ -1451,6 +1451,28 @@ RESULT-TEXT is either the extracted response or nil on failure."
       (setq result-text
             (format "%s result for task: %s\n\n%s"
                     (capitalize agent-type) description result-text)))
+    ;; Transition the sub-agent heading from AI-DOING to AI-DONE.
+    ;; insert-user-heading skips sub-agents (tags with 2+ '@' signs),
+    ;; so the cleanup is responsible for this state transition.
+    (let ((heading-marker (plist-get info :agent-heading-marker)))
+      (when (and heading-marker (marker-buffer heading-marker))
+        (let ((base-buf (or (and indirect-buf (buffer-live-p indirect-buf)
+                                 (buffer-base-buffer indirect-buf))
+                            (marker-buffer heading-marker))))
+          (when (buffer-live-p base-buf)
+            (with-current-buffer base-buf
+              (save-excursion
+                (goto-char heading-marker)
+                (when (org-at-heading-p)
+                  (let ((done-kw (or (bound-and-true-p gptel-org-tasks-done-keyword)
+                                     "AI-DONE")))
+                    (gptel-org-agent--set-todo-keyword done-kw)
+                    (org-set-tags nil)
+                    (when gptel-log-level
+                      (gptel--log
+                       (format "subtree-cleanup: transitioned %s heading to %s"
+                               agent-type done-kw)
+                       "agent-debug" 'no-json))))))))))
     ;; Close the indirect buffer, folding the subtree in the base buffer
     (when (and indirect-buf (buffer-live-p indirect-buf))
       (gptel-org-agent--close-indirect-buffer indirect-buf t))
@@ -1970,6 +1992,7 @@ legacy callback-based string accumulation is used."
             (let ((sub-info (gptel-fsm-info sub-fsm)))
               (plist-put sub-info :agent-main-cb main-cb)
               (plist-put sub-info :agent-indirect-buffer indirect-buf)
+              (plist-put sub-info :agent-heading-marker heading-marker)
               (plist-put sub-info :agent-type agent-type)
               (plist-put sub-info :agent-description description)
               (when (and handover (not (eq handover :json-false)))
