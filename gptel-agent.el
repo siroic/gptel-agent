@@ -236,7 +236,9 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
               (cl-loop for entry in gptel-agent--agents
                        unless (or (string= (car entry) name)
                                   (string= (car entry) "gptel-agent")
-                                  (string= (car entry) "gptel-plan"))
+                                  (string= (car entry) "gptel-plan")
+                                  (string= (car entry) "gptel-triage")
+                                  (string= (car entry) "gptel-coordinator"))
                        collect (format "=%s=: %s\n"
                                        (car entry) (plist-get (cdr entry) :description))
                        into agent-list
@@ -252,7 +254,7 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
   ;; Update the enum for Agent tool (exclude top-level agents from sub-agent list)
   (setf (plist-get (car (gptel-tool-args (gptel-get-tool "Agent"))) :enum)
         (vconcat (cl-delete-if
-                  (lambda (name) (member name '("gptel-agent" "gptel-triage")))
+                  (lambda (name) (member name '("gptel-agent" "gptel-triage" "gptel-coordinator")))
                   (mapcar #'car gptel-agent--agents))))
 
   ;; Apply top-level agent presets if they exist
@@ -260,8 +262,10 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
     (apply #'gptel-make-preset 'gptel-agent gptel-agent-plist))
   (when-let* ((gptel-plan-plist (assoc-default "gptel-plan" gptel-agent--agents nil nil)))
     (apply #'gptel-make-preset 'gptel-plan gptel-plan-plist))
-  (when-let* ((triage-plist (assoc-default "gptel-triage" gptel-agent--agents nil nil)))
-    (apply #'gptel-make-preset 'gptel-triage triage-plist))
+  (when-let* ((gptel-triage-plist (assoc-default "gptel-triage" gptel-agent--agents nil nil)))
+    (apply #'gptel-make-preset 'gptel-triage gptel-triage-plist))
+  (when-let* ((gptel-coordinator-plist (assoc-default "gptel-coordinator" gptel-agent--agents nil nil)))
+    (apply #'gptel-make-preset 'gptel-coordinator gptel-coordinator-plist))
   gptel-agent--agents)
 
 ;;; Sub-agent definition parsers for Markdown and Org
