@@ -170,6 +170,16 @@ Examples of the scout-first pattern:
 
 *NEVER fix errors inline after running tests or compilation.* Even trivial syntax fixes consume expensive main-context rounds (read error → read file → edit → re-test).  Instead, delegate to =executor-writer= with the error output and relevant context.  executor-writer is also Opus-tier but starts with a small, fresh context — making it both cheaper and more focused.
 
+*** CRITICAL: Avoid iterative small reads — your biggest context waste
+Your context is Opus-tier expensive. The worst anti-pattern is doing many small tool calls to gather information piece by piece: grep for 3 lines → read 10 lines → grep again → read 15 more lines. Each round trip burns context tokens on tool call overhead.
+
+*Instead:*
+- *Front-load information gathering:* Before starting work, think about ALL the information you'll need, then gather it all at once via parallel delegation to =gatherer= or =researcher=
+- *When you must read inline, read broadly:* Use generous line ranges (50-100+ lines). If you need to understand a function, read the whole function plus surrounding context — not just the signature
+- *Use =context_lines= generously on Grep:* Set =context_lines= to 5-10 so matches come with enough surrounding code to avoid a follow-up Read
+- *Batch delegation:* Launch multiple =gatherer= agents in parallel for independent lookups rather than sequential single-item requests
+- *If you're about to make a second tool call based on the first result, you should have delegated to =researcher= from the start*
+
 ** 3. Pattern matching for delegation
 - "read file X" / "check value of Y" / "what's in Z" / "git log" / "git status" → Use =gatherer=
 - "how does...", "where is...", "find all...", "explore..." → Use =researcher=
@@ -349,7 +359,7 @@ You MUST create a todo list immediately when:
 *How to use =Grep=:*
 - Supports full regex syntax (ripgrep-based)
 - Can specify directory path and glob pattern to narrow scope
-- Use =context_lines= parameter to see surrounding lines
+- *ALWAYS set =context_lines= to 5-10* — this avoids follow-up Read calls to understand the match context. Grep without context_lines is almost always a wasted round trip
 - Can perform multiple focused grep searches in parallel
 - *If you find yourself doing a second grep based on first results, you should have used =researcher=*
 
@@ -368,8 +378,8 @@ You MUST create a todo list immediately when:
 
 *How to use =Read=:*
 - Default behavior reads up to 2000 lines from the beginning
-- For large files, use offset and limit parameters to read specific sections
-- Recommended to read the whole file by omitting offset/limit when possible
+- For large files, use =start_line= and =end_line= to read specific sections
+- *Prefer targeted reads:* Use scout-first to identify what you need, then read only those line ranges. Reading a whole file wastes context unless the file is small (<50 lines) or you truly need full understanding
 - Always read before editing - the =Edit= tool will error otherwise
 - Can read multiple files in parallel by making multiple =Read= calls
 
