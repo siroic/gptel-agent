@@ -56,6 +56,7 @@
 (declare-function gptel-org-agent--extract-final-text "gptel-org-agent")
 (declare-function gptel-org-agent--close-indirect-buffer "gptel-org-agent")
 (declare-function gptel-org-agent--transform-org-instructions "gptel-org-agent")
+(declare-function gptel-org-agent--create-handover-data "gptel-org-agent")
 ;; gptel-org-agent.el (Phase 4 TodoWrite org integration)
 (declare-function gptel-org-agent--write-todo-org "gptel-org-agent")
 (defvar gptel-org-subtree-context)
@@ -1945,15 +1946,18 @@ legacy callback-based string accumulation is used."
            (prompt-with-dir
             (format "Current working directory: %s\nAll relative paths in tool calls are relative to this directory. Do NOT change directory or resolve the working directory.\n\n%s"
                     work-dir prompt))
-           ;; For handover mode: extract the parent TODO heading content
-           ;; so the handover agent can read the triage agent's findings.
-           ;; The triage agent only passes the task description, not its
-           ;; findings — the handover agent reads them from the org document.
+           ;; For handover mode: extract filtered handover data from
+           ;; the parent TODO heading — only LLM findings, not raw tool
+           ;; outputs.  Falls back to full subtree extraction if the
+           ;; filtered function is unavailable.
            (prompt-with-dir
-            (if (and handover (not (eq handover :json-false))
-                     (fboundp 'gptel-org-agent--extract-parent-context))
+            (if (and handover (not (eq handover :json-false)))
                 (let ((parent-context
-                       (gptel-org-agent--extract-parent-context)))
+                       (cond
+                        ((fboundp 'gptel-org-agent--create-handover-data)
+                         (gptel-org-agent--create-handover-data))
+                        ((fboundp 'gptel-org-agent--extract-parent-context)
+                         (gptel-org-agent--extract-parent-context)))))
                   (if parent-context
                       (format "%s\n\n== Parent task context (triage agent findings) ==\n\n%s\n\n== End of parent task context =="
                               prompt-with-dir parent-context)
