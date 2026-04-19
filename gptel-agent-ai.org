@@ -121,7 +121,8 @@ Switched via header-line buttons in agent buffers.
 - Task overlay shows progress (Waiting → Calling Tools → Complete)
 - Result returned as text to parent agent
 - Each sub-agent type has its own agent definition file
-- *Handover mode*: when =handover=true=, the sub-agent's output creates a new =AI-DO= sibling heading instead of returning text to the caller.  Parent TODO content is auto-injected into the handover agent's prompt so it can read the triage agent's findings.  Used for escalation workflows (triage → specialist).
+- *Handover mode*: when =handover=true=, the sub-agent's output creates a new =AI-DO= heading at the user task level instead of returning text to the caller.  The system navigates up past all agent headings (via =gptel-org-ib-find-user-task-heading=) to find the user-level task heading, then inserts the new =AI-DO= heading as a sibling of the top-level agent subtree.  Parent TODO content (the full user task subtree) is auto-injected into the handover agent's prompt so it can read all accumulated context including triage agent findings.  Used for escalation workflows (triage → specialist).
+- *User-initiated handoff*: =gptel-org-handoff= command stops the current task and creates a new =AI-DO= sibling heading for continuation with fresh context.  Useful when a conversation has grown too large for efficient token usage.
 
 ** TodoWrite Org Integration
 
@@ -201,7 +202,7 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | =introspector= | Emacs/elisp exploration (Sonnet) | Introspection + org tools |
 | =remote-server= | Remote server management via SSH (Haiku) | Remote tools |
 | =archive-searcher= | Search archived AI task conversations (Haiku) | Glob, Grep, Read, Eval |
-| =handover= | Handover plan writer (Opus), reads triage context | Read-only file + org tools |
+| =handover= | Handover plan writer (Opus, explicit model), reads triage context | Read-only file + org tools |
 
 ** Loading Pipeline
 
