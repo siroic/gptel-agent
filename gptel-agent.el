@@ -238,7 +238,8 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
                                   (string= (car entry) "gptel-agent")
                                   (string= (car entry) "gptel-plan")
                                   (string= (car entry) "gptel-triage")
-                                  (string= (car entry) "gptel-coordinator"))
+                                  (string= (car entry) "gptel-coordinator")
+                                  (string= (car entry) "gptel-dummy"))
                        collect (format "=%s=: %s\n"
                                        (car entry) (plist-get (cdr entry) :description))
                        into agent-list
@@ -254,7 +255,7 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
   ;; Update the enum for Agent tool (exclude top-level agents from sub-agent list)
   (setf (plist-get (car (gptel-tool-args (gptel-get-tool "Agent"))) :enum)
         (vconcat (cl-delete-if
-                  (lambda (name) (member name '("gptel-agent" "gptel-triage" "gptel-coordinator")))
+                  (lambda (name) (member name '("gptel-agent" "gptel-triage" "gptel-coordinator" "gptel-dummy")))
                   (mapcar #'car gptel-agent--agents))))
 
   ;; Apply top-level agent presets if they exist
@@ -266,6 +267,8 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
     (apply #'gptel-make-preset 'gptel-triage gptel-triage-plist))
   (when-let* ((gptel-coordinator-plist (assoc-default "gptel-coordinator" gptel-agent--agents nil nil)))
     (apply #'gptel-make-preset 'gptel-coordinator gptel-coordinator-plist))
+  (when-let* ((gptel-dummy-plist (assoc-default "gptel-dummy" gptel-agent--agents nil nil)))
+    (apply #'gptel-make-preset 'gptel-dummy gptel-dummy-plist))
   gptel-agent--agents)
 
 ;;; Sub-agent definition parsers for Markdown and Org
