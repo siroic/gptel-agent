@@ -60,6 +60,8 @@ or Markdown files with YAML frontmatter (legacy).
 :max-tokens: 8192
 :backend: Claude
 :subagent-models: (:gatherer "Claude/claude-haiku-4-5-20251001" :researcher "Claude/claude-sonnet-4-6")
+:include-reasoning: t
+:reasoning-effort: high
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
 
@@ -95,7 +97,9 @@ System prompt body in markdown.
 | =backend= | =:backend: Claude= | =backend: Claude= | LLM backend |
 | =model= | =:model: name= | =model: name= | Model name |
 | =max-tokens= | =:max-tokens: 8192= | =max-tokens: 8192= | Token limit |
-| =subagent-models= | =:subagent-models: (:key "backend/model" ...)= (plist) | YAML nested object | Per-sub-agent model overrides |
+| =include-reasoning= | =:include-reasoning: t= | =include-reasoning: true= | How to handle LLM thinking blocks (t/nil/ignore) |
+| =reasoning-effort= | =:reasoning-effort: xhigh= | =reasoning-effort: xhigh= | Reasoning effort level (low/medium/high/xhigh/max) |
+| =subagent-models= | =:subagent-models: (:key "backend/model" ...)= or plist values | YAML nested object | Per-sub-agent model overrides (string or plist) |
 | =pre=, =post= | Elisp expression (evaluated) | Elisp expression (evaluated) | Hooks run before/after preset |
 | =parents= | Elisp list of symbols (read) | Elisp list (read) | Inherit from other presets |
 | =context= | =:context: A B C= (space-separated) | YAML list | Context sources |
@@ -103,6 +107,10 @@ System prompt body in markdown.
 Notes:
 - In Org format, =:tools= and =:context= are space-separated strings (split automatically)
 - =:subagent-models= is an Elisp plist read with =read=, e.g. =(:gatherer "Claude/claude-haiku-4-5-20251001")=
+- =:subagent-models= values can be strings or plists: =(:gatherer "Claude/claude-haiku-4-5-20251001" :researcher-deep (:model "Claude/claude-opus-4-7" :reasoning-effort "xhigh" :include-reasoning t))=
+- =:include-reasoning= is converted from string: "t" → t, "nil" → nil, "ignore" → 'ignore
+- =:reasoning-effort= is kept as string (no conversion needed)
+- =:max-tokens= is converted from string to number
 - =:pre= and =:post= are Elisp expressions evaluated with =(eval (read val) t)=
 - =:parents= is read as Elisp and interned to symbols
 - The =CATEGORY= property (added automatically by Org) is ignored
@@ -328,15 +336,24 @@ When =gptel-org-subtree-context= is enabled, sub-agents use buffer-writing inste
  :backend "Claude"                ; backend name string (resolved to struct on apply)
  :model "model-name"
  :max-tokens 8192
+ :include-reasoning t
+ :reasoning-effort "xhigh"
  :subagent-models (:gatherer "Claude/claude-haiku-4-5-20251001"
-                   :researcher "Claude/claude-sonnet-4-6")
+                   :researcher-deep (:model "Claude/claude-opus-4-7"
+                                     :reasoning-effort "xhigh"
+                                     :include-reasoning t))
  :pre (lambda () ...)
  :post (lambda () ...))
 #+end_src
 
-=:subagent-models= maps sub-agent type keywords to ="backend/model"= strings.
-Used by =gptel-agent--get-parent-subagent-model= to override the default model
-when a parent agent spawns sub-agents.
+=:subagent-models= maps sub-agent type keywords to model specifications.
+Values can be:
+- A string like ="Claude/claude-opus-4-7"= (just model override)
+- A plist like =(:model "Claude/claude-opus-4-7" :reasoning-effort "xhigh" :include-reasoning t)= (model + extra params)
+
+Extra params from plist values (=:reasoning-effort=, =:include-reasoning=, etc.) are merged into the sub-agent's preset at layer 2 (parent's subagent-models), between the defaults (layer 1) and the agent's own properties (layer 3).
+
+Used by =gptel-agent--get-parent-subagent-model= to override settings when a parent agent spawns sub-agents.
 
 =:agent-handover= is a runtime-only boolean set on the FSM info plist when a
 sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM context)]].

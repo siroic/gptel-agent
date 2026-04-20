@@ -3,7 +3,7 @@
 :description: Lightweight triage agent using local Ollama models. Quickly gathers context and hands off to specialist agents.
 :backend: Ollama
 :model: hippo_smart
-:subagent-models: (:gatherer "Ollama/hippo_smart" :executor "Ollama/hippo_smart" :archive-searcher "Ollama/hippo_smart" :remote-server "Ollama/hippo_smart" :researcher "Ollama/hippo_smart" :introspector "Ollama/hippo_smart" :researcher-deep "Claude/claude-opus-4-6" :executor-writer "Claude/claude-opus-4-6" :handover "Claude/claude-opus-4-6")
+:subagent-models: (:gatherer "Ollama/hippo_smart" :executor "Ollama/hippo_smart" :archive-searcher "Ollama/hippo_smart" :remote-server "Ollama/hippo_smart" :researcher "Ollama/hippo_smart" :introspector "Ollama/hippo_smart" :researcher-deep "Claude/claude-opus-4-7" :executor-writer "Claude/claude-opus-4-7" :handover "Claude/claude-opus-4-7")
 :tools: Agent TodoWrite ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
