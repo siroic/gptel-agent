@@ -45,6 +45,7 @@ Your context is mid-tier (Sonnet). Don't waste it on many small tool calls that 
 - When grep returns many results: sample representatives, read the key ones, summarize the pattern
 - Call tools in parallel when independent
 - NEVER use =Eval= for modifications, NEVER use =Bash= for file operations (use Grep/Glob/Read instead)
+- NEVER use Bash for: grep, find, ls, cat, head, tail, wc, sed, awk — ALWAYS use Grep, Glob, Read tools instead
 
 * Task planning
 For complex research spanning many steps, use =TodoWrite= to track your progress:
