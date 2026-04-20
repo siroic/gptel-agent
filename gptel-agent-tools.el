@@ -1413,6 +1413,31 @@ the known skills as string ready to be included to the context."
 ;;   :agent-type            - agent type string (e.g., "researcher")
 ;;   :agent-description     - short task description
 
+(defun gptel-agent-subtree--inject-error (error-data &optional backtrace)
+  "Inject error details under the current org heading.
+ERROR-DATA is the error from the request (string or plist).
+Optional BACKTRACE is a backtrace string to include.
+Point should be at the heading where the error occurred."
+  (let ((error-msg (cond
+                    ((stringp error-data)
+                     error-data)
+                    ((plist-get error-data :message)
+                     (format "%s: %s"
+                             (or (plist-get error-data :type) "Error")
+                             (plist-get error-data :message)))
+                    (t (format "%S" error-data)))))
+    (org-end-of-meta-data t)
+    ;; Remove any previous error line to avoid accumulation on retries
+    (when (looking-at "\n=ERROR=:[^\n]*\n")
+      (delete-region (point) (match-end 0)))
+    (insert (format "\n=ERROR=: %s\n" (string-trim error-msg)))
+    (when backtrace
+      (let ((level (org-current-level)))
+        (insert (format "\n%s BACKTRACE\n" (make-string (1+ level) ?*))
+                "#+begin_example\n"
+                backtrace
+                "\n#+end_example\n")))))
+
 (defun gptel-agent-subtree--cleanup (fsm)
   "Clean up subtree resources for FSM and return the main-cb.
 
@@ -1452,10 +1477,11 @@ RESULT-TEXT is either the extracted response or nil on failure."
       (setq result-text
             (format "%s result for task: %s\n\n%s"
                     (capitalize agent-type) description result-text)))
-    ;; Transition the sub-agent heading from AI-DOING to AI-DONE.
+    ;; Transition the sub-agent heading from AI-DOING to AI-DONE (or FEEDBACK on error).
     ;; insert-user-heading skips sub-agents (tags with 2+ '@' signs),
     ;; so the cleanup is responsible for this state transition.
-    (let ((heading-marker (plist-get info :agent-heading-marker)))
+    (let ((heading-marker (plist-get info :agent-heading-marker))
+          (has-error (plist-get info :error)))
       (when (and heading-marker (marker-buffer heading-marker))
         (let ((base-buf (or (and indirect-buf (buffer-live-p indirect-buf)
                                  (buffer-base-buffer indirect-buf))
@@ -1465,14 +1491,26 @@ RESULT-TEXT is either the extracted response or nil on failure."
               (save-excursion
                 (goto-char heading-marker)
                 (when (org-at-heading-p)
-                  (let ((done-kw (or (bound-and-true-p gptel-org-tasks-done-keyword)
-                                     "AI-DONE")))
-                    (gptel-org-agent--set-todo-keyword done-kw)
+                  (let ((target-kw
+                         (if has-error
+                             ;; On error, use FEEDBACK keyword so user can review
+                             (or (and (boundp 'gptel-org-user-keyword)
+                                      gptel-org-user-keyword)
+                                 "FEEDBACK")
+                           ;; Normal completion
+                           (or (bound-and-true-p gptel-org-tasks-done-keyword)
+                               "AI-DONE"))))
+                    (gptel-org-agent--set-todo-keyword target-kw)
                     (org-set-tags nil)
+                    ;; Inject error details under the heading
+                    (when has-error
+                      (gptel-agent-subtree--inject-error has-error
+                                                         (plist-get info :backtrace)))
                     (when gptel-log-level
                       (gptel--log
-                       (format "subtree-cleanup: transitioned %s heading to %s"
-                               agent-type done-kw)
+                       (format "subtree-cleanup: transitioned %s heading to %s%s"
+                               agent-type target-kw
+                               (if has-error " (ERROR)" ""))
                        "agent-debug" 'no-json))))))))))
     ;; Close the indirect buffer, folding the subtree in the base buffer
     (when (and indirect-buf (buffer-live-p indirect-buf))
