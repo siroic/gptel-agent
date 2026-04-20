@@ -469,7 +469,16 @@ Signals an error if:
                   ((or :pre :post) (plist-put props-plist key (eval (read val) t)))
                   (:parents (plist-put props-plist key
                                        (mapcar #'intern (ensure-list (read val)))))
-                  (:subagent-models (plist-put props-plist key (read val)))))))
+                  (:subagent-models (plist-put props-plist key (read val)))
+                  (:include-reasoning
+                   (plist-put props-plist key
+                              (pcase val
+                                ("t" t)
+                                ("nil" nil)
+                                ("ignore" 'ignore)
+                                (_ val))))
+                  (:max-tokens
+                   (plist-put props-plist key (string-to-number val)))))))
 
           ;; If only metadata requested, return the props plist (ignore templates)
           (if metadata-only

@@ -1874,7 +1874,10 @@ Looks up the currently active preset (the parent/calling agent) in
 `gptel-agent--agents' and checks its `:subagent-models' property for
 an entry matching AGENT-TYPE.
 
-Returns a plist (:backend BACKEND :model MODEL) if found, nil otherwise."
+Returns a plist (:backend BACKEND :model MODEL ...) if found, nil otherwise.
+When the subagent-models entry is a plist with extra keys like
+:reasoning-effort or :include-reasoning, those are included in the
+returned plist alongside :backend and :model."
   (when gptel-log-level
     (gptel--log
      (format "get-parent-subagent-model: agent-type=%s gptel--preset=%s (bound=%s)"
@@ -1888,8 +1891,17 @@ Returns a plist (:backend BACKEND :model MODEL) if found, nil otherwise."
                      (parent-plist (cdr (assoc parent-name gptel-agent--agents)))
                      (subagent-models (plist-get parent-plist :subagent-models))
                      (agent-key (intern (concat ":" agent-type)))
-                     (model-name (plist-get subagent-models agent-key)))
-           (gptel-agent--resolve-model model-name))))
+                     (agent-spec (plist-get subagent-models agent-key)))
+           (if (stringp agent-spec)
+               ;; Simple string: "Claude/claude-opus-4-7"
+               (gptel-agent--resolve-model agent-spec)
+             ;; Plist: (:model "Claude/opus-4-7" :reasoning-effort "xhigh" ...)
+             (when-let* ((model-name (plist-get agent-spec :model))
+                         (resolved (gptel-agent--resolve-model model-name)))
+               ;; Merge extra params from agent-spec into resolved model
+               (let ((extra (copy-sequence agent-spec)))
+                 (cl-remf extra :model)
+                 (append resolved extra)))))))
     (when gptel-log-level
       (gptel--log
        (format "get-parent-subagent-model: result=%s (parent=%s, subagent-models=%s)"
@@ -1932,6 +1944,7 @@ legacy callback-based string accumulation is used."
        "preset-debug" t))
     (let ((--agent-task-preset
            (append (list :include-reasoning nil
+                         :reasoning-effort nil
                          :use-tools t
                          :context nil   ;Can be overriden by agent
                          ;; Always include :backend and :model so that
@@ -1945,9 +1958,16 @@ legacy callback-based string accumulation is used."
                    ;; Parent's subagent-models: applied BEFORE agent's own
                    ;; plist so agent's own backend/model wins if specified
                    (when parent-model
-                     (list :backend (gptel-backend-name
-                                     (plist-get parent-model :backend))
-                           :model (plist-get parent-model :model)))
+                     (append
+                      (list :backend (gptel-backend-name
+                                      (plist-get parent-model :backend))
+                            :model (plist-get parent-model :model))
+                      ;; Include extra params from subagent-models
+                      ;; (e.g., :reasoning-effort, :include-reasoning)
+                      (let ((extra (copy-sequence parent-model)))
+                        (cl-remf extra :backend)
+                        (cl-remf extra :model)
+                        extra)))
                    (cdr (assoc agent-type gptel-agent--agents))
                    ;; Model override from tags/properties: must be LAST
                    ;; because map-do in gptel--apply-preset processes all
