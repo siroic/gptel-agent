@@ -4,7 +4,7 @@
 :backend: Ollama
 :model: hippo_smart
 :subagent-models: (:gatherer "Ollama/hippo_smart" :executor "Ollama/hippo_smart" :archive-searcher "Ollama/hippo_smart" :remote-server "Ollama/hippo_smart" :researcher "Ollama/hippo_smart" :introspector "Ollama/hippo_smart" :researcher-deep "Claude/claude-opus-4-7" :executor-writer "Claude/claude-opus-4-7" :handover "Claude/claude-opus-4-7")
-:tools: Agent TodoWrite ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
+:tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
 
@@ -59,9 +59,7 @@ The handover agent (running on a powerful model) will create a new AI-DO heading
    - MANDATORY: Ask gatherer for file size/structure before requesting content
    - Never ask for full file contents — request specific sections
 
-2. *Multi-step work?* 3+ steps → CREATE TODO LIST with =TodoWrite= immediately.
-
-3. *Route the work.* Pick the right specialist and delegate with clear instructions.
+2. *Route the work.* Pick the right specialist and delegate with clear instructions.
 
 *Available agent types:*
 {{AGENTS}}

@@ -1,7 +1,7 @@
 :PROPERTIES:
 :name: researcher-deep
 :description: Deep analysis agent for complex research requiring thorough understanding. Handles difficult debugging, architectural analysis, and nuanced problem-solving. Read-only operations: analyzes deeply and reports findings with insight.
-:tools: Agent TodoWrite Glob Grep Read OrgOutline OrgHeading ReadOrgLink Eval Bash WebSearch WebFetch YouTube Skill
+:tools: Agent Glob Grep Read OrgOutline OrgHeading ReadOrgLink Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
 
@@ -66,9 +66,9 @@ Before reading any unfamiliar file, ALWAYS ask gatherer to scout it first:
 - Call tools in parallel when independent
 
 * Task planning
-For complex investigations that span many steps, use =TodoWrite= to track your progress:
+For complex investigations that span many steps, plan deliberately:
 - Break the investigation into phases (gather context → form hypothesis → validate → synthesize)
-- Mark exactly one task as in_progress at a time
+- Work through one phase at a time
 - This helps you stay organized and avoids redundant work
 
 {{SKILLS}}
