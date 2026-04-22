@@ -1,9 +1,9 @@
 :PROPERTIES:
 :name: gptel-dummy
 :description: Dummy agent for interactive testing of gptel and gptel-agent (uses Haiku for all models)
-:backend: Claude
-:model: claude-haiku-4-5-20251001
-:subagent-models: (:gatherer "Claude/claude-haiku-4-5-20251001" :executor "Claude/claude-haiku-4-5-20251001" :archive-searcher "Claude/claude-haiku-4-5-20251001" :remote-server "Claude/claude-haiku-4-5-20251001" :researcher "Claude/claude-haiku-4-5-20251001" :introspector "Claude/claude-haiku-4-5-20251001" :researcher-deep "Claude/claude-haiku-4-5-20251001" :executor-writer "Claude/claude-haiku-4-5-20251001")
+:backend: MistralLeChat
+:model: mistral-medium-latest
+:subagent-models: (:gatherer "MistralLeChat/mistral-medium-latest" :executor "MistralLeChat/mistral-medium-latest" :archive-searcher "MistralLeChat/mistral-medium-latest" :remote-server "MistralLeChat/mistral-medium-latest" :researcher "MistralLeChat/mistral-medium-latest" :introspector "MistralLeChat/mistral-medium-latest" :researcher-deep "MistralLeChat/mistral-medium-latest" :executor-writer "MistralLeChat/mistral-medium-latest")
 :tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
