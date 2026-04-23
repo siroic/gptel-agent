@@ -384,13 +384,15 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 | [[file:../gptel/gptel-ai.org::*Discussion Structure: AI/FEEDBACK Keywords]] | AI/FEEDBACK keyword mode, auto-corrector, FEEDBACK cycle | exists |
 
 * TODOs
-
-** DONE Variable rename: gptel-org-agent-subtrees → gptel-org-subtree-context
+** Adhoc TODOs
+** Researched TODOs
+*** DONE Variable rename: gptel-org-agent-subtrees → gptel-org-subtree-context
 - Renamed all 8 occurrences across =gptel-agent-tools.el= (7) and =gptel-agent-control.el= (1)
 - The gptel package had already renamed this variable; gptel-agent was using the stale name
 - This was causing =bound-and-true-p= checks to always return nil, silently disabling agent subtree features
 
-** TODO Advisor agent for context management
+** Improvement TODOs
+*** TODO Advisor agent for context management
 - An Opus-tier agent that can read and edit the coordinator's conversation buffer
 - Purpose: optimize weak-model context by summarizing/cleaning assistant messages
 - Requires new infrastructure:
@@ -402,14 +404,12 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 - Consider simpler alternatives first:
   - Sliding-window =:pre= hook that summarizes history into system message prefix
   - =gptel--num-messages-to-send= to limit context (already supported, zero effort)
-
-** TODO Test gptel-triage with local models
+*** TODO Test gptel-triage with local models
 - Verify tool-calling reliability with qwen3.5:27b (hippo_smart)
 - Test that subagent-models resolution works correctly
 - Check if local models can parse tool results and generate correct tool calls
 - If tool calling is unreliable, the coordinator approach needs rethinking
-
-** TODO De-duplicate bash-safety test fixtures
+*** TODO De-duplicate bash-safety test fixtures
 After the test layout consolidation (=test/Makefile=, commit =6a9ac08=),
 =test/test-bash-safety.el= still carries a copy of the bash safety
 predicates and regex variables from =gptel-agent-tools.el=
@@ -428,7 +428,7 @@ in =test/test-bash-safety.el= and rely on =(require 'gptel-agent-tools)=
 (or the =find=-based Makefile auto-load) for the real definitions.
 Verify =make test= still passes.
 
-** TODO Remove stub defvars in test-gptel-agent-trace.el
+*** TODO Remove stub defvars in test-gptel-agent-trace.el
 =test/test-gptel-agent-trace.el= currently stubs external variables
 that =gptel-agent-trace.el= declares with =defvar=
 (e.g. =gptel-org-agent-tool-confirm-keywords=) so the trace module
