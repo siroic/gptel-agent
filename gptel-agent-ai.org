@@ -34,6 +34,48 @@ tools and custom system prompts.
 
 * Architecture
 
+** Indirect Buffer Model
+
+Sub-agents run inside Org indirect buffers whose lifecycle and
+relationships are managed exclusively by the canonical API in
+=gptel-indirect-buffer.el= (gptel core).  gptel-agent code never calls
+=buffer-base-buffer= directly, never walks marker arithmetic by hand,
+and never pokes at the IB registry internals — every relationship
+query goes through the canonical resolvers.
+
+Lifecycle (all in =gptel-indirect-buffer.el=):
+
+- =gptel-org-ib-safe-insert-sibling= — insert the sub-agent's subtree
+  before the parent's =TERMINE= terminator, returning the heading
+  marker.
+- =gptel-org-ib-create= — open an indirect buffer narrowed to that
+  subtree and register a =gptel-org-ib-node= in
+  =gptel-org-ib--registry=.
+- =gptel-org-ib-close= — tear down the indirect buffer, remove its
+  registry node, and leave the parent's structure intact.
+- =gptel-org-ib-ensure-terminator= / =gptel-org-ib-streaming-marker= —
+  maintain the =TERMINE= sentinel (sole terminator keyword; =RESULTS=
+  and =FEEDBACK= no longer play that role).
+
+Resolution (the only sanctioned way to query IB relationships):
+
+- =gptel-org-ib-parent= — parent node or base buffer
+- =gptel-org-ib-children= — list of child nodes
+- =gptel-org-ib-base= — root base buffer (walks the parent chain)
+- =gptel-org-ib-bounds= — =(start . end)= in the parent buffer
+- =gptel-org-ib-point= — current point respecting narrowing
+- =gptel-org-ib-absolute-position= — =(buffer . pos)= pair
+
+Inconsistencies are fatal: =gptel-org-ib-fatal= signals =user-error=
+rather than letting corrupted state propagate.  There are no
+=ignore-errors= wrappers around IB operations in gptel-agent.
+
+Design rationale and invariants live in
+[[file:../gptel/gptel-indirect-buffer-ai.org][gptel-indirect-buffer-ai.org]]
+(see also [[file:../gptel/gptel-ai.org::#ib-canonical-refactor]] for
+the refactor history).  This document cross-references them rather
+than restating the design.
+
 ** Agent = Preset + Tools + System Prompt
 
 #+begin_example
@@ -204,6 +246,65 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | =archive-searcher= | Search archived AI task conversations (Haiku) | Glob, Grep, Read, Eval |
 | =handover= | Handover plan writer (Opus, explicit model), reads triage context | Read-only file + org tools |
 
+** State Triads
+
+Each agent declares a =:state-words:= triad =(REQUEST DOING DONE)= in
+its =:PROPERTIES:= drawer.  The three words are the Org TODO keywords
+used for that agent's subtree across its lifecycle:
+
+- *REQUEST* — keyword on the freshly-inserted heading (before the
+  sub-agent starts running)
+- *DOING* — keyword while the sub-agent is streaming; set by
+  =gptel-org-agent= when the sub-agent's indirect buffer opens (IB-5.3)
+- *DONE* — keyword after the sub-agent completes; rewritten by
+  =gptel-agent-subtree--cleanup= (see [[*Sub-Agent Subtree Handlers]])
+
+Non-agent sub-tasks collapse to three copies of the tool's own
+keyword.  When the property is missing the default fallback is
+=(PENDING RUNNING DONE)=.
+
+The triad is read via =gptel-agent-state-words= (=gptel-agent.el=) and
+consumed from three places:
+
+- =gptel-org-agent.el= — derives the DOING keyword when opening the
+  sub-agent's indirect buffer
+- =gptel-org.el= — iterates all agent plists and registers every
+  triad word into =org-todo-keyword-faces= so they fontify correctly
+- =gptel-agent-tools.el= — reads the DONE slot during cleanup-time
+  keyword rewriting
+
+Current triads for registered built-in agents:
+
+| Agent | REQUEST | DOING | DONE |
+|-------+---------+-------+------|
+| =gptel-agent= | =AGENT= | =AGENTING= | =AGENTED= |
+| =gptel-triage= | =TRIAGE= | =TRIAGING= | =TRIAGED= |
+| =gptel-plan= | =PLAN= | =PLANNING= | =PLANNED= |
+| =executor= | =EXECUTE= | =EXECUTING= | =EXECUTED= |
+| =implementer= | =IMPLEMENT= | =IMPLEMENTING= | =IMPLEMENTED= |
+| =verifier= | =VERIFY= | =VERIFYING= | =VERIFIED= |
+| =researcher= | =RESEARCH= | =RESEARCHING= | =RESEARCHED= |
+| =researcher-deep= | =DEEP-RESEARCH= | =DEEP-RESEARCHING= | =DEEP-RESEARCHED= |
+| =gatherer= | =GATHER= | =GATHERING= | =GATHERED= |
+| =introspector= | =INTROSPECT= | =INTROSPECTING= | =INTROSPECTED= |
+| =remote-server= | =REMOTE-OP= | =REMOTE-OPING= | =REMOTE-OPED= |
+| =archive-searcher= | =ARCHIVE-SEARCH= | =ARCHIVE-SEARCHING= | =ARCHIVE-SEARCHED= |
+| =handover= | =HANDOVER= | =HANDING-OVER= | =HANDED-OVER= |
+
+Additional agents shipped under =agents/= but not registered as
+top-level presets:
+
+| Agent | REQUEST | DOING | DONE |
+|-------+---------+-------+------|
+| =gptel-coordinator= | =COORDINATE= | =COORDINATING= | =COORDINATED= |
+| =gptel-dummy= | =DUMMY= | =DUMMYING= | =DUMMIED= |
+
+Each agent's =:PROPERTIES:= drawer is authoritative — if a triad
+changes there, re-read the drawer rather than editing this table
+first.  Grammar: exactly three whitespace-separated words.  See
+[[file:../gptel/gptel-indirect-buffer-ai.org::#target-design][gptel-indirect-buffer-ai.org → target-design]]
+for how triads interact with IB lifecycle.
+
 ** Loading Pipeline
 
 1. =gptel-agent-dirs= specifies directories to scan
@@ -215,6 +316,9 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 5. Three top-level agents registered as presets via =gptel-make-preset=:
    =gptel-agent=, =gptel-plan=, =gptel-triage=
 6. Tool enum updated for the =Agent= tool's =:enum= (excludes top-level agents)
+7. Each agent's =:state-words:= triad (see [[*State Triads]]) is read via
+   =gptel-agent-state-words= and its three keywords are registered in
+   =org-todo-keyword-faces= (done in =gptel-org.el= at preset-apply time)
 
 * Tool System
 
@@ -285,13 +389,18 @@ Tools with side effects register preview functions via =gptel--tool-preview-alis
 
 ** Sub-Agent Subtree Handlers
 
-When =gptel-org-subtree-context= is enabled, sub-agents use buffer-writing instead of callback-based string accumulation.  The handler table =gptel-agent-subtree--handlers= uses a custom DONE handler chain:
+When =gptel-org-subtree-context= is enabled, sub-agents stream directly
+into their own indirect buffer (opened via =gptel-org-ib-create=)
+instead of accumulating output into a callback string.  The handler
+table =gptel-agent-subtree--handlers= drives a custom DONE chain that
+delegates all IB operations to the canonical API in
+=gptel-indirect-buffer.el= (see [[*Indirect Buffer Model]]):
 
 | Handler | Purpose |
 |---------+---------|
 | =gptel-agent-subtree--handle-post-insert= | Like =gptel--handle-post-insert= but omits separator/prefix insertion (sub-agents are non-interactive) |
-| =gptel-agent-subtree--handle-done= | Extracts text from indirect buffer, cleans up, calls parent's =main-cb= |
-| =gptel-agent-subtree--cleanup= | Closes indirect buffer, advances parent's corrector past folded subtree |
+| =gptel-agent-subtree--handle-done= | Extracts text from the sub-agent's indirect buffer (via =gptel-org-ib-bounds=), then calls parent's =main-cb= |
+| =gptel-agent-subtree--cleanup= | Calls =gptel-org-ib-close= to tear down the indirect buffer, rewrites the subtree's TODO keyword from the agent's DOING word to its DONE word (see [[*State Triads]]), advances parent's corrector past the folded subtree |
 
 * Skill System
 
@@ -382,6 +491,7 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 | [[file:../gptel/gptel-archive-ai.org]] | Archive searcher agent context | exists |
 | [[file:../gptel/gptel-ai.org]] | gptel core (parent package) | exists |
 | [[file:../gptel/gptel-ai.org::*Discussion Structure: AI/FEEDBACK Keywords]] | AI/FEEDBACK keyword mode, auto-corrector, FEEDBACK cycle | exists |
+| [[file:../gptel/gptel-indirect-buffer-ai.org]] | Canonical indirect-buffer API (lifecycle, registry, resolvers, TERMINE terminator) | exists |
 
 * TODOs
 ** Adhoc TODOs
