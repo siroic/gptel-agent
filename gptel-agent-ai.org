@@ -165,6 +165,25 @@ These provide visual feedback (overlay updates) during tool execution.
 | =gptel-agent-tools-remote.el= | ext | Remote server tools via TRAMP SSH |
 | =gptel-agent-tools-introspection.el= | ext | Emacs introspection: symbol/source lookup, manual, eval |
 
+** Tests
+
+All tests live under =test/= and run via a Makefile that mirrors
+gptel's convention:
+
+#+begin_example
+cd quelpa/build/gptel-agent/test && make test
+#+end_example
+
+| File | Purpose |
+|------+---------|
+| =test/gptel-agent-test.el= | Loader: =gptel-agent-parse-org-properties=, =:state-words= parsing, scaffold command |
+| =test/test-bash-safety.el= | Bash safety predicates (safe / confirm / file-op checks) |
+| =test/test-gptel-agent-trace.el= | =gptel-agent-trace= pure functions |
+
+The Makefile loads every =*.el= at the repo root (source) and in
+=test/=, then runs =ert-run-tests-batch-and-exit=.  gptel source must
+be available at the sibling path =../../gptel=.
+
 * Agent Definitions
 
 Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=.

@@ -11,11 +11,7 @@
 ;;
 ;; Run from the repo root:
 ;;
-;;   emacs -Q --batch \
-;;     -L . -L ../gptel \
-;;     -l gptel-agent.el \
-;;     -l test/gptel-agent-test.el \
-;;     -f ert-run-tests-batch-and-exit
+;;   cd test && make test
 
 ;;; Code:
 
