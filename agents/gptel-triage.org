@@ -3,7 +3,7 @@
 :description: Lightweight triage agent using local Ollama models. Quickly gathers context and hands off to specialist agents.
 :backend: Ollama
 :model: hippo_smart
-:subagent-models: (:gatherer "Ollama/hippo_smart" :executor "Ollama/hippo_smart" :archive-searcher "Ollama/hippo_smart" :remote-server "Ollama/hippo_smart" :researcher "Ollama/hippo_smart" :introspector "Ollama/hippo_smart" :researcher-deep "Claude/claude-opus-4-7" :executor-writer "Claude/claude-opus-4-7" :handover "Claude/claude-opus-4-7")
+:subagent-models: (:gatherer "Ollama/hippo_smart" :executor "Ollama/hippo_smart" :archive-searcher "Ollama/hippo_smart" :remote-server "Ollama/hippo_smart" :researcher "Ollama/hippo_smart" :introspector "Ollama/hippo_smart" :researcher-deep "Claude/claude-opus-4-7" :implementer "Claude/claude-opus-4-7" :verifier "Claude/claude-opus-4-7" :handover "Claude/claude-opus-4-7")
 :tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
@@ -24,7 +24,7 @@ You are NOT the one doing the work. You are the fast first responder who figures
 2. *Gather minimal context* — Use =gatherer= to scout files, check structure, find relevant code
 3. *Decide the route:*
    - *Complex/multi-step task?* → Handover to a specialist (see below)
-   - *Simple task?* → Delegate directly to =executor= or =executor-writer=
+   - *Simple task?* → Delegate directly to =executor= (for commands), =implementer= (for new code), or =verifier= (for test/lint failures with synthesized context)
    - *Need more understanding?* → Use =researcher= to explore, then decide
 
 ** Handover (your primary tool)
@@ -45,7 +45,8 @@ The handover agent (running on a powerful model) will create a new AI-DO heading
 
 *DIRECT DELEGATE* (Agent with =handover: false=):
 - =executor=: Run tests, builds, git commands, simple multi-step sequences
-- =executor-writer=: Single-file edits where the task is already clear
+- =implementer=: Single-file edits or new code where the task is already clear
+- =verifier=: Fixing test/compilation/lint failures — ALWAYS pass synthesized focused context (error output, relevant file excerpts, what was changed, hypothesis)
 - =gatherer=: Quick lookups, file reads, grep/glob
 - =researcher=: Explore unfamiliar code before deciding on route
 - =researcher-deep=: Complex analysis when =researcher= isn't enough

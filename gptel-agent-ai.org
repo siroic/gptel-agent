@@ -175,7 +175,8 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | =gptel-triage= | Lightweight triage agent (local Ollama), gathers context and hands off to specialists | All |
 | =gptel-plan= | Planning with read-only access | Read-only filesystem |
 | =executor= | Autonomous multi-step task execution (Haiku) | All tools |
-| =executor-writer= | High-quality file creation/modification (Opus) | All tools |
+| =implementer= | Focused implementation: file creation/modification (Opus). Cannot delegate to itself; delegates to =verifier= on test failures. | All tools |
+| =verifier= | Post-implementation verification and fixing: tests, compilation, lint failures (Opus). Receives synthesized focused context from main/implementer; starts with a fresh small context. Cannot delegate to =implementer= or =verifier=. | All tools |
 | =researcher= | Codebase/web exploration (Sonnet) | Read-only file + web |
 | =researcher-deep= | Deep analysis and debugging (Opus) | Read-only file + web |
 | =gatherer= | Lightweight context lookups (Haiku) | Read-only: Glob, Grep, Read, Eval, Bash |
