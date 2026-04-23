@@ -70,5 +70,31 @@
                                     (error-message-string err)))))
       (delete-file tmp))))
 
+(ert-deftest state-words-fallback-returns-default ()
+  "`gptel-agent-state-words' returns the default triad for unknown agents.
+
+When AGENT-NAME is not a key in `gptel-agent--agents', or when its
+plist carries no :state-words, the accessor must fall back to
+\(\"PENDING\" \"RUNNING\" \"DONE\") so call sites always receive a
+valid three-token triad."
+  ;; Unknown agent: empty registry.
+  (let ((gptel-agent--agents nil))
+    (should (equal '("PENDING" "RUNNING" "DONE")
+                   (gptel-agent-state-words "no-such-agent"))))
+  ;; Known agent without :state-words property: still defaults.
+  (let ((gptel-agent--agents '(("legacy" :description "no triad here"))))
+    (should (equal '("PENDING" "RUNNING" "DONE")
+                   (gptel-agent-state-words "legacy"))))
+  ;; Known agent with :state-words: returns the stored triad.
+  (let ((gptel-agent--agents
+         '(("gatherer" :state-words ("GATHER" "GATHERING" "GATHERED")))))
+    (should (equal '("GATHER" "GATHERING" "GATHERED")
+                   (gptel-agent-state-words "gatherer"))))
+  ;; Case-sensitive lookup: a mismatched-case name falls back.
+  (let ((gptel-agent--agents
+         '(("gatherer" :state-words ("GATHER" "GATHERING" "GATHERED")))))
+    (should (equal '("PENDING" "RUNNING" "DONE")
+                   (gptel-agent-state-words "Gatherer")))))
+
 (provide 'gptel-agent-test)
 ;;; gptel-agent-test.el ends here

@@ -1390,9 +1390,30 @@ RESULT-TEXT is either the extracted response or nil on failure."
                              (or (and (boundp 'gptel-org-user-keyword)
                                       gptel-org-user-keyword)
                                  "FEEDBACK")
-                           ;; Normal completion
-                           (or (bound-and-true-p gptel-org-tasks-done-keyword)
+                           ;; IB-5.3: normal completion transitions to
+                           ;; the agent's DONE word (triad[2], e.g.
+                           ;; "GATHERED" for the gatherer) instead of
+                           ;; the generic AI-DONE terminator.  Falls
+                           ;; back to the legacy done keyword when
+                           ;; `gptel-agent-state-words' is unavailable.
+                           (or (and (fboundp 'gptel-agent-state-words)
+                                    (nth 2 (gptel-agent-state-words agent-type)))
+                               (bound-and-true-p gptel-org-tasks-done-keyword)
                                "AI-DONE"))))
+                    ;; Ensure the target keyword is registered as an
+                    ;; org TODO keyword so `org-todo' accepts it.  For
+                    ;; the error path `FEEDBACK' is registered by
+                    ;; `gptel-org--register-todo-keywords' at gptel-
+                    ;; mode setup; for the success path the agent's
+                    ;; DONE word may not yet be registered if
+                    ;; gptel-agent loaded after gptel-mode.
+                    (when (and (not has-error)
+                               (fboundp 'gptel-org--ensure-todo-state))
+                      (gptel-org--ensure-todo-state
+                       target-kw
+                       (and (boundp 'gptel-org--agent-state-face)
+                            gptel-org--agent-state-face)
+                       t))
                     (gptel-org-agent--set-todo-keyword target-kw)
                     (org-set-tags nil)
                     ;; Inject error details under the heading

@@ -509,6 +509,17 @@ Signals an error if:
                 (plist-put props-plist :system body-text)
               props-plist)))))))
 
+(defun gptel-agent-state-words (agent-name)
+  "Return the :state-words triad for AGENT-NAME, or a safe default.
+
+AGENT-NAME is matched against `gptel-agent--agents' keys (case-sensitive,
+`equal').  Returns a list of three uppercase strings
+\(REQUEST DOING DONE).  Falls back to (\"PENDING\" \"RUNNING\" \"DONE\")
+when AGENT-NAME is unknown or its plist carries no :state-words."
+  (let ((plist (cdr (assoc agent-name gptel-agent--agents))))
+    (or (plist-get plist :state-words)
+        '("PENDING" "RUNNING" "DONE"))))
+
 ;;; Commands
 
 ;;;###autoload
