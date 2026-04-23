@@ -96,5 +96,86 @@ valid three-token triad."
     (should (equal '("PENDING" "RUNNING" "DONE")
                    (gptel-agent-state-words "Gatherer")))))
 
+(ert-deftest scaffold-includes-state-words ()
+  "`gptel-agent-scaffold-agent' writes a well-formed agent file.
+
+Verifies that the generated file contains :name:, :description:,
+:tools:, and a :state-words: triad of three uppercase tokens whose
+first token is the upcased agent name.  Also verifies that the file
+has non-trivial body content beyond the property drawer."
+  (let ((temp-dir (make-temp-file "gptel-agent-scaffold-" 'dir)))
+    (unwind-protect
+        (let* ((path (gptel-agent-scaffold-agent "test-agent" temp-dir))
+               (content (with-temp-buffer
+                          (insert-file-contents path)
+                          (buffer-string))))
+          ;; Return value is the path.
+          (should (equal path (expand-file-name "test-agent.org" temp-dir)))
+          (should (file-exists-p path))
+
+          ;; :name: matches.
+          (should (string-match-p "^:name: test-agent$" content))
+
+          ;; :description: present (may contain TODO placeholder).
+          (should (string-match-p "^:description: .+" content))
+
+          ;; :tools: present.
+          (should (string-match-p "^:tools: .+" content))
+
+          ;; :state-words: triad of three whitespace-separated uppercase
+          ;; tokens, first token = TEST-AGENT.
+          (should (string-match
+                   "^:state-words:[ \t]+\\([A-Z0-9-]+\\)[ \t]+\\([A-Z0-9-]+\\)[ \t]+\\([A-Z0-9-]+\\)[ \t]*$"
+                   content))
+          (should (equal "TEST-AGENT" (match-string 1 content)))
+          ;; Doing and done should also be uppercase, non-empty, and
+          ;; distinct from the REQUEST token.
+          (let ((doing (match-string 2 content))
+                (done  (match-string 3 content)))
+            (should (and doing (> (length doing) 0)))
+            (should (and done  (> (length done)  0)))
+            (should (not (equal doing "TEST-AGENT")))
+            (should (not (equal done  "TEST-AGENT"))))
+
+          ;; Reparse via the loader: the triad must round-trip.
+          (let ((plist (gptel-agent-parse-org-properties path nil nil t)))
+            (let ((sw (plist-get plist :state-words)))
+              (should (listp sw))
+              (should (= 3 (length sw)))
+              (should (equal "TEST-AGENT" (car sw)))))
+
+          ;; Body content beyond the property drawer: strip the drawer
+          ;; and check there's meaningful text left.
+          (let ((body-start (string-match "^:END:$" content)))
+            (should body-start)
+            (let ((body (substring content
+                                   (match-end 0))))
+              (should (> (length (string-trim body)) 20)))))
+      (delete-directory temp-dir t))))
+
+(ert-deftest scaffold-rejects-bad-name-and-existing-file ()
+  "`gptel-agent-scaffold-agent' validates NAME and refuses to overwrite."
+  (let ((temp-dir (make-temp-file "gptel-agent-scaffold-" 'dir)))
+    (unwind-protect
+        (progn
+          ;; Malformed names.
+          (should-error (gptel-agent-scaffold-agent "Bad Name" temp-dir)
+                        :type 'user-error)
+          (should-error (gptel-agent-scaffold-agent "1agent" temp-dir)
+                        :type 'user-error)
+          (should-error (gptel-agent-scaffold-agent "" temp-dir)
+                        :type 'user-error)
+          ;; Uppercase letters are not allowed either.
+          (should-error (gptel-agent-scaffold-agent "FooBar" temp-dir)
+                        :type 'user-error)
+
+          ;; Now create a valid one, then try to create it again:
+          ;; second call must raise `user-error'.
+          (gptel-agent-scaffold-agent "dupe" temp-dir)
+          (should (file-exists-p (expand-file-name "dupe.org" temp-dir)))
+          (should-error (gptel-agent-scaffold-agent "dupe" temp-dir)
+                        :type 'user-error))
+      (delete-directory temp-dir t))))
+
 (provide 'gptel-agent-test)
 ;;; gptel-agent-test.el ends here

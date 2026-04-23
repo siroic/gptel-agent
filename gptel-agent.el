@@ -575,6 +575,109 @@ this session, which defaults to the default `gptel-agent'."
           (setcar header-line-format
                   `(:eval (funcall ,display-mode))))))))
 
+(defun gptel-agent--scaffold-triad (name)
+  "Derive a (REQUEST DOING DONE) triad from agent NAME.
+
+NAME is the lowercase-hyphenated agent name.  Returns a list of three
+uppercase strings.  The rule is intentionally simple: upcase NAME;
+strip a trailing \"E\" if present to form a stem; then append \"ING\"
+for the doing word and \"ED\" for the done word.  This is naive for
+composite names (e.g. \"handover\" yields
+\(\"HANDOVER\" \"HANDOVERING\" \"HANDOVERED\")) and is expected to be
+hand-edited after scaffolding."
+  (let* ((base (upcase name))
+         (stem (if (string-suffix-p "E" base)
+                   (substring base 0 -1)
+                 base)))
+    (list base (concat stem "ING") (concat stem "ED"))))
+
+;;;###autoload
+(defun gptel-agent-scaffold-agent (name &optional directory)
+  "Create a new starter agent org file for NAME under DIRECTORY.
+
+NAME is the agent name (lowercase-hyphenated, e.g. \"my-agent\").
+It will appear as the `:name:' property and as the file's basename.
+Must match [a-z][a-z0-9-]* (lowercase ASCII, digits, hyphens, starting
+with a letter).
+
+DIRECTORY defaults to the first entry of `gptel-agent-dirs'.
+If called interactively, prompts for the name; when `gptel-agent-dirs'
+has more than one entry the user is also prompted for a directory.
+
+The file is populated with a canonical property drawer — :name:,
+:description:, :state-words:, :tools:, :pre: — and a placeholder
+system-prompt body.  The :state-words: value is derived from NAME by
+uppercasing and appending \"ING\"/\"ED\" suffixes after stripping a
+trailing \"e\" where needed, producing a conventional triad like
+\(FOO FOOING FOOED).  The rule is deliberately naive (e.g.
+\"handover\" -> (\"HANDOVER\" \"HANDOVERING\" \"HANDOVERED\")); the
+scaffold is a starting point and users are expected to edit the triad
+to taste.  An inline comment in the generated file reminds them.
+
+Signals `user-error' when NAME is malformed, when no DIRECTORY can be
+resolved, or when the target file already exists.  Opens the new file
+in a buffer on success and returns its full absolute path."
+  (interactive
+   (let* ((n (read-string "Agent name (lowercase-hyphenated): "))
+          (d (cond
+              ((null gptel-agent-dirs)
+               (user-error
+                "`gptel-agent-dirs' is empty; set it before scaffolding"))
+              ((= 1 (length gptel-agent-dirs))
+               (car gptel-agent-dirs))
+              (t (completing-read "Directory: "
+                                  gptel-agent-dirs nil t
+                                  nil nil (car gptel-agent-dirs))))))
+     (list n d)))
+  (unless (and (stringp name)
+               (let ((case-fold-search nil))
+                 (string-match-p "\\`[a-z][a-z0-9-]*\\'" name)))
+    (user-error
+     "Invalid agent name %S: must match [a-z][a-z0-9-]* (lowercase ASCII, digits, hyphens; must start with a letter)"
+     name))
+  (let ((dir (or directory (car gptel-agent-dirs))))
+    (unless dir
+      (user-error
+       "No DIRECTORY given and `gptel-agent-dirs' is empty; set it first"))
+    (let ((path (expand-file-name (concat name ".org") dir)))
+      (when (file-exists-p path)
+        (user-error "Agent file already exists: %s" path))
+      (unless (file-directory-p dir)
+        (make-directory dir t))
+      (let* ((triad (gptel-agent--scaffold-triad name))
+             (request (nth 0 triad))
+             (doing   (nth 1 triad))
+             (done    (nth 2 triad)))
+        (with-temp-file path
+          (insert
+           ":PROPERTIES:\n"
+           ":name: " name "\n"
+           ":description: TODO: describe what this agent does in one sentence.\n"
+           ":state-words: " request " " doing " " done "\n"
+           ":tools: Read Grep Glob\n"
+           ":pre: (lambda () (require 'gptel-agent-tools-org))\n"
+           ":END:\n"
+           "# TODO: replace with the agent's system prompt.  The body of\n"
+           "# the file is used verbatim as the system prompt.  The tokens\n"
+           "# {{AGENTS}} and {{SKILLS}} are expanded at load time to the\n"
+           "# list of available agents and skills respectively.\n"
+           "#\n"
+           "# The :state-words: triad above was auto-derived from the\n"
+           "# agent name using a naive suffix rule (strip trailing E,\n"
+           "# append ING/ED).  It is almost certainly wrong for anything\n"
+           "# beyond simple verbs — please edit it to a natural\n"
+           "# (REQUEST DOING DONE) triad before using this agent.\n"
+           "\n"
+           "You are the " name " agent.\n"
+           "\n"
+           "* What you do\n"
+           "- (describe primary behaviours)\n"
+           "\n"
+           "* What you do NOT do\n"
+           "- (describe boundaries)\n")))
+      (find-file path)
+      path)))
+
 (provide 'gptel-agent)
 
 ;;; gptel-agent.el ends here
