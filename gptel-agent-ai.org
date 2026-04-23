@@ -408,3 +408,31 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 - Test that subagent-models resolution works correctly
 - Check if local models can parse tool results and generate correct tool calls
 - If tool calling is unreliable, the coordinator approach needs rethinking
+
+** TODO De-duplicate bash-safety test fixtures
+After the test layout consolidation (=test/Makefile=, commit =6a9ac08=),
+=test/test-bash-safety.el= still carries a copy of the bash safety
+predicates and regex variables from =gptel-agent-tools.el=
+(=gptel-agent--bash-safe-patterns=, =gptel-agent--bash-file-op-patterns=,
+=gptel-agent--bash-safe-command-p=, =gptel-agent--bash-confirm-p=,
+=gptel-agent--check-bash-file-ops=).
+
+Originally duplicated to avoid =gptel= / =transient= load overhead
+during isolated runs. The new Makefile loads the whole package anyway,
+so the duplication is now pure drift risk — if the real predicates in
+=gptel-agent-tools.el= change, the tests will keep passing against the
+stale copies.
+
+Cleanup task: delete the =;;;; ---- Duplicated definitions ...= block
+in =test/test-bash-safety.el= and rely on =(require 'gptel-agent-tools)=
+(or the =find=-based Makefile auto-load) for the real definitions.
+Verify =make test= still passes.
+
+** TODO Remove stub defvars in test-gptel-agent-trace.el
+=test/test-gptel-agent-trace.el= currently stubs external variables
+that =gptel-agent-trace.el= declares with =defvar=
+(e.g. =gptel-org-agent-tool-confirm-keywords=) so the trace module
+could be loaded in isolation. With the new Makefile loading the full
+package, those stubs should no longer be necessary. Remove them and
+confirm =make test= still passes; if a real binding is needed, pull it
+from the proper defining module instead of stubbing.
