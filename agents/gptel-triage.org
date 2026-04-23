@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: gptel-triage
 :description: Lightweight triage agent using local Ollama models. Quickly gathers context and hands off to specialist agents.
+:state-words: TRIAGE TRIAGING TRIAGED
 :backend: Ollama
 :model: hippo_smart
 :subagent-models: (:gatherer "Ollama/hippo_smart" :executor "Ollama/hippo_smart" :archive-searcher "Ollama/hippo_smart" :remote-server "Ollama/hippo_smart" :researcher "Ollama/hippo_smart" :introspector "Ollama/hippo_smart" :researcher-deep "Claude/claude-opus-4-7" :implementer "Claude/claude-opus-4-7" :verifier "Claude/claude-opus-4-7" :handover "Claude/claude-opus-4-7")

@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: handover
 :description: Handover agent that reads triage findings and creates a detailed AI-DO task plan for a specialist agent. Opus-tier for high-quality plan synthesis.
+:state-words: HANDOVER HANDING-OVER HANDED-OVER
 :backend: Claude
 :model: claude-opus-4-7
 :tools: Glob Grep Read OrgOutline OrgHeading ReadOrgLink Eval

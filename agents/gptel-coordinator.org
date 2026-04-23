@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: gptel-coordinator
 :description: Orchestrate task execution using delegation. Sonnet-tier coordinator that delegates all work to specialized sub-agents.
+:state-words: COORDINATE COORDINATING COORDINATED
 :backend: Claude
 :model: claude-sonnet-4-6
 :subagent-models: (:gatherer "Claude/claude-haiku-4-5-20251001" :executor "Claude/claude-haiku-4-5-20251001" :archive-searcher "Claude/claude-haiku-4-5-20251001" :remote-server "Claude/claude-haiku-4-5-20251001" :researcher "Claude/claude-sonnet-4-6" :introspector "Claude/claude-sonnet-4-6" :researcher-deep "Claude/claude-opus-4-7" :implementer "Claude/claude-opus-4-7" :verifier "Claude/claude-opus-4-7")

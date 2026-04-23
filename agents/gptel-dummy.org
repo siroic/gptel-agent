@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: gptel-dummy
 :description: Dummy agent for interactive testing of gptel and gptel-agent (uses Haiku for all models)
+:state-words: DUMMY DUMMYING DUMMIED
 :backend: MistralLeChat
 :model: mistral-medium-latest
 :subagent-models: (:gatherer "MistralLeChat/mistral-medium-latest" :executor "MistralLeChat/mistral-medium-latest" :archive-searcher "MistralLeChat/mistral-medium-latest" :remote-server "MistralLeChat/mistral-medium-latest" :researcher "MistralLeChat/mistral-medium-latest" :introspector "MistralLeChat/mistral-medium-latest" :researcher-deep "MistralLeChat/mistral-medium-latest" :implementer "MistralLeChat/mistral-medium-latest" :verifier "MistralLeChat/mistral-medium-latest")

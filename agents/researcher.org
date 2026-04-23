@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: researcher
 :description: Specialized agent for research and information gathering. Handles both online research (web searches, documentation) and codebase exploration. Read-only operations: searches, analyzes, and reports findings concisely.
+:state-words: RESEARCH RESEARCHING RESEARCHED
 :tools: Agent Glob Grep Read OrgOutline OrgHeading ReadOrgLink Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:

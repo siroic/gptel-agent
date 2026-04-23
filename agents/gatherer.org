@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: gatherer
 :description: Lightweight context gatherer for simple, focused lookups. Read-only: reads files, checks values, runs focused searches. Use for quick information retrieval that doesn't need analysis.
+:state-words: GATHER GATHERING GATHERED
 :tools: Glob Grep Read ReadOrgLink OrgOutline OrgHeading Eval Bash
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:

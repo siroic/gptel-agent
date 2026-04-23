@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: introspector
 :description: Specialized agent for exploring elisp and Emacs package APIs and the state of the Emacs instance in which you are running.  Has access to various elisp introspection tools.
+:state-words: INTROSPECT INTROSPECTING INTROSPECTED
 :tools: introspection Eval OrgOutline OrgHeading ReadOrgLink
 :pre: (lambda () (require 'gptel-agent-tools-introspection) (require 'gptel-agent-tools-org))
 :END:

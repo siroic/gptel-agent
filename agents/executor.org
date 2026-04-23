@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: executor
 :description: Autonomous executor for straightforward multi-step tasks. Runs commands, tests, git operations, and simple file edits. Use for well-defined tasks where the approach is clear and output quality is secondary.
+:state-words: EXECUTE EXECUTING EXECUTED
 :tools: Agent Glob Grep Read OrgOutline OrgHeading ReadOrgLink Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:

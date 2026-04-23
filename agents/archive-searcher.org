@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: archive-searcher
 :description: Specialized agent for searching archived AI task conversations. Finds related past work using metadata (git repos, commits, file paths) and content. Read-only: searches archives and reports relevant findings.
+:state-words: ARCHIVE-SEARCH ARCHIVE-SEARCHING ARCHIVE-SEARCHED
 :tools: Glob Grep Read OrgOutline OrgHeading ReadOrgLink Eval
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:

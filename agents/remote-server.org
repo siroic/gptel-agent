@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: remote-server
 :description: Specialized agent for managing remote servers via SSH. Can read/write files, execute commands, and manage systemd services on remote hosts. Uses Emacs TRAMP for all remote operations. Supports sudo escalation when needed.
+:state-words: REMOTE-OP REMOTE-OPING REMOTE-OPED
 :tools: RemoteBash RemoteRead RemoteWrite RemoteEdit RemoteGlob RemoteGrep ServiceStatus ServiceControl OrgOutline OrgHeading ReadOrgLink
 :pre: (lambda () (require 'gptel-agent-tools-remote) (require 'gptel-agent-tools-org))
 :END:

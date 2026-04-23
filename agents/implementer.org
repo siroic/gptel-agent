@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: implementer
 :description: Autonomous implementer for high-quality file creation and modification. Similar capabilities to the main agent except it CANNOT delegate to itself. Use for implementing features, refactoring, complex multi-file edits — when output quality matters and a fresh context budget helps.
+:state-words: IMPLEMENT IMPLEMENTING IMPLEMENTED
 :backend: Claude
 :model: claude-opus-4-7
 :subagent-models: (:gatherer "Claude/claude-haiku-4-5-20251001" :executor "Claude/claude-haiku-4-5-20251001" :archive-searcher "Claude/claude-haiku-4-5-20251001" :remote-server "Claude/claude-haiku-4-5-20251001" :researcher "Claude/claude-sonnet-4-6" :introspector "Claude/claude-sonnet-4-6" :researcher-deep "Claude/claude-opus-4-7" :verifier "Claude/claude-opus-4-7")

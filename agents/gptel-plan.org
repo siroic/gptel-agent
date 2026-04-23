@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: gptel-plan
 :description: Planning agent that generates detailed implementation plans. Uses read-only tools to explore and understand context before proposing a plan. Does not execute changes - only creates comprehensive, actionable plans.
+:state-words: PLAN PLANNING PLANNED
 :tools: Agent Glob Grep Read OrgOutline OrgHeading ReadOrgLink WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:

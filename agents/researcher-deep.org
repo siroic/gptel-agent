@@ -1,6 +1,7 @@
 :PROPERTIES:
 :name: researcher-deep
 :description: Deep analysis agent for complex research requiring thorough understanding. Handles difficult debugging, architectural analysis, and nuanced problem-solving. Read-only operations: analyzes deeply and reports findings with insight.
+:state-words: DEEP-RESEARCH DEEP-RESEARCHING DEEP-RESEARCHED
 :tools: Agent Glob Grep Read OrgOutline OrgHeading ReadOrgLink Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
