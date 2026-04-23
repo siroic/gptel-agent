@@ -453,7 +453,14 @@ Signals an error if:
 
               (pcase key-sym
                 (:context (setq value (split-string value)))
-                (:tools (setq value (split-string value))))
+                (:tools (setq value (split-string value)))
+                (:state-words
+                 (let ((tokens (mapcar #'upcase (split-string value nil t))))
+                   (unless (= (length tokens) 3)
+                     (user-error
+                      ":state-words: must contain exactly three tokens (REQUEST DOING DONE) in %s"
+                      file-path))
+                   (setq value tokens))))
 
               ;; Skip CATEGORY property (added automatically by Org)
               (unless (string-equal key-str "category")
@@ -482,6 +489,12 @@ Signals an error if:
                                 (_ val))))
                   (:max-tokens
                    (plist-put props-plist key (string-to-number val)))))))
+
+          ;; Default :state-words to (PENDING RUNNING DONE) when absent.
+          (unless (plist-member props-plist :state-words)
+            (setq props-plist
+                  (plist-put props-plist :state-words
+                             (list "PENDING" "RUNNING" "DONE"))))
 
           ;; If only metadata requested, return the props plist (ignore templates)
           (if metadata-only
