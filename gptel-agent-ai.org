@@ -495,6 +495,53 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 
 * TODOs
 ** Adhoc TODOs
+*** AI-DO Support Siro-AI methodology auto-transitions and commits
+- Origin :: Referenced from [[file:~/siro-ai/siro-ai.org::*Methodology needs gptel-agent support for auto state transitions and commits][siro-ai.org → Adhoc TODO]]. The
+  Siro-AI methodology Process (steps 3 and 6) requires gptel-agent
+  to automate git operations and cross-doc TODO state transitions
+  so the workflow runs end-to-end without manual git commands.
+- Mission :: Research and spec the required tools and hooks. Split
+  into sub-tasks as needed:
+  1. *Git tools* — confirm whether ~git-fetch~, ~git-status~,
+     ~git-commit-file~, ~git-push~ already exist in
+     =gptel-agent-tools.el= (or =gptel-agent-tools-org.el=). If they
+     do, reuse them; if not, add them with the same safety
+     conventions as the existing bash-tool predicates (no
+     force-push, explicit path confirm for commits, confirm on
+     destructive ops).
+  2. *Cross-file TODO link resolution* — given a workspace-doc TODO
+     that links to a project-doc TODO, resolve the target heading
+     reliably. Use the standard ~file:...::*Heading~ form. Handle
+     missing targets gracefully.
+  3. *Pre-send hook* — on ~gptel-send~, fetch upstream, check for
+     conflicts on the project doc containing the referenced TODO,
+     flip the referenced project-doc TODO to ~AI-DOING~, commit,
+     push. Abort send with a clear message on unresolvable
+     conflicts.
+  4. *Post-send / on-finish hook* — on transition to ~AI-DONE~,
+     update the project doc, commit, and push. Capture any
+     follow-up TODOs AI created during the session and ensure they
+     land in the project doc.
+  5. *State-change observer* — detect user transitions
+     ~AI-DO~ → ~TODO~ and ~AI-DONE~ → ~DONE~ in the project doc at
+     ~gptel-send~ time; auto-commit these trivial promotions if the
+     user has not committed them yet.
+- Key questions ::
+  - Should auto-commit trigger on ~gptel-send~, or on a diff between
+    send-start and send-end buffer snapshots?
+  - Does gptel-agent need a new "siro-ai" mode/preset that enables
+    these hooks only in siro-ai workspaces?
+  - How do we avoid commit noise — batching related state changes,
+    or one commit per transition?
+- Dependencies :: May touch =gptel-org-agent.el= (pre/post-send
+  hooks, state observation) and =gptel-agent-tools.el= (new or
+  reused git tools). No external deps required.
+- References :: [[file:~/siro-ai/siro-ai.org]],
+  [[file:~/siro-ai/future_of_work.org]].
+- Expected results :: A research spec detailed enough that it can be
+  split into concrete implementer sub-tasks (one per
+  hook/tool/observer), with clear acceptance criteria per sub-task.
+
 ** Researched TODOs
 *** DONE Variable rename: gptel-org-agent-subtrees → gptel-org-subtree-context
 - Renamed all 8 occurrences across =gptel-agent-tools.el= (7) and =gptel-agent-control.el= (1)
