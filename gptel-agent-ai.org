@@ -549,6 +549,67 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 - This was causing =bound-and-true-p= checks to always return nil, silently disabling agent subtree features
 
 ** Improvement TODOs
+*** TODO Fix first-launch byte-compile failures in gptel-agent
+When =elpa/gptel-agent*= is removed and Emacs is relaunched, quelpa
+rebuilds the package and byte-compilation fails — no =.elc= files are
+produced. On second launch Emacs loads the =.el= files directly so the
+errors go away, masking the underlying bugs. See
+[[file:~/.emacs.d/debug-emacs-launch-error.org]] for the full log and
+analysis.
+
+Two blocking bugs in this repo abort compilation:
+
+**** Bug 1: Wrong =display-buffer= action format
+- File: =gptel-agent-control.el=, line 82 (=defcustom
+  gptel-agent-control-display-action=)
+- Default value uses flat =(FUNC . ALIST)= form; byte-compiler parses the
+  unquoted function symbol at car as a call, producing:
+  - =Warning: 'display-buffer-in-side-window' called with 3 arguments=
+  - =Error (bytecomp): Wrong type argument: sequencep, bottom= (hard)
+- Root cause: wrong format. Compare =gptel.el:1425= which uses the
+  correct ='((display-buffer-in-side-window) ...)= form.
+- Fix:
+  #+begin_src elisp
+  '((display-buffer-in-side-window)
+    (side . bottom)
+    (slot . 0)
+    (window-height . 0.3))
+  #+end_src
+
+**** Bug 2: =provided-mode-derived-p= bare symbol (Emacs 30 convention)
+- File: =gptel-agent-tools.el=, line 984
+- Call:
+  #+begin_src elisp
+  (provided-mode-derived-p (buffer-local-value 'major-mode cb) 'org-mode)
+  #+end_src
+- Error: =Wrong type argument: sequencep, major-mode=
+- New 2-arg convention needs =MODES= as a list.
+- Fix: replace ='org-mode= with ='(org-mode)=.
+
+**** Cascade errors (no separate fix needed)
+After Bug 1 aborts compilation of =gptel-agent-control.el=, the
+compiler emits spurious fallout:
+- =reference to free variable 'cl-lib' / 'gptel' / 'funcall' / 'function'=
+- =Symbol's value as variable is void: cl-lib=
+- 2× =file has no 'lexical-binding' directive=
+All 7 =gptel-agent/*.el= files actually have =lexical-binding: t= on
+line 1. These warnings disappear once Bug 1 is fixed.
+
+**** Minor warnings (optional cleanup)
+- =org-element-property= not known to be defined
+  (=gptel-agent-tools-org.el=): add =(declare-function
+  org-element-property "org-element")=.
+- =gptel-org--debug= not defined (=gptel-agent-trace.el=): benign, all
+  call sites are =fboundp=-guarded.
+
+**** Verification plan
+After applying fixes:
+1. =rm -rf ~/.emacs.d/elpa/gptel-agent-*=
+2. Relaunch Emacs; inspect =*Warnings*= buffer.
+3. =ls ~/.emacs.d/elpa/gptel-agent-*/*.elc= should list all 7 files.
+4. =cd test && make test= still passes.
+5. Commit atomically in this repo.
+
 *** TODO Advisor agent for context management
 - An Opus-tier agent that can read and edit the coordinator's conversation buffer
 - Purpose: optimize weak-model context by summarizing/cleaning assistant messages

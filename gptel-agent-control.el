@@ -80,9 +80,10 @@
 
 (defcustom gptel-agent-control-display-action
   '(display-buffer-in-side-window
-    (side . bottom)
-    (slot . 0)
-    (window-height . 0.3))
+    . ((side . bottom)
+       (slot . 0)
+       (window-height . 0.3)))
+
   "Display action for the gptel agent control buffer.
 
 This is passed to `display-buffer' when the control buffer is first
