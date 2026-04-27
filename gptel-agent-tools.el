@@ -53,11 +53,14 @@
 
 ;; gptel-org-agent.el (Phase 2 sub-agent subtrees)
 (declare-function gptel-org-agent--setup-task-subtree "gptel-org-agent")
+(declare-function gptel-org-agent--pending-tool-subtree-info "gptel-org-agent")
 (declare-function gptel-org-agent--extract-final-text "gptel-org-agent")
 (declare-function gptel-org-agent--close-indirect-buffer "gptel-org-agent")
 (declare-function gptel-org-agent--transform-org-instructions "gptel-org-agent")
 (declare-function gptel-org-agent--create-handover-data "gptel-org-agent")
 (defvar gptel-org-subtree-context)
+(defvar gptel-org-agent--dispatching-pending-id)
+(defvar gptel-org-agent--pending-tool-calls)
 
 (defvar url-http-end-of-headers)
 (defvar gptel-agent--agents)
@@ -1373,9 +1376,19 @@ RESULT-TEXT is either the extracted response or nil on failure."
     ;; Transition the sub-agent heading from AI-DOING to AI-DONE (or FEEDBACK on error).
     ;; insert-user-heading skips sub-agents (tags with 2+ '@' signs),
     ;; so the cleanup is responsible for this state transition.
+    ;;
+    ;; IB-7 / EXECUTING-as-state-transition: when this sub-agent was
+    ;; dispatched from a PENDING tool-call (`:from-pending-id' is
+    ;; set), the heading and IB are owned by
+    ;; `gptel-org-agent--update-tool-heading', which runs after the
+    ;; tool result is delivered to the parent FSM.  Cleanup must NOT
+    ;; transition the heading or close the IB in that case — let the
+    ;; tool-result update path do it.
     (let ((heading-marker (plist-get info :agent-heading-marker))
-          (has-error (plist-get info :error)))
-      (when (and heading-marker (marker-buffer heading-marker))
+          (has-error (plist-get info :error))
+          (from-pending-id (plist-get info :from-pending-id)))
+      (when (and (not from-pending-id)
+                 heading-marker (marker-buffer heading-marker))
         (let ((base-buf (or (and indirect-buf (buffer-live-p indirect-buf)
                                  (buffer-base-buffer indirect-buf))
                             (marker-buffer heading-marker))))
@@ -1426,9 +1439,14 @@ RESULT-TEXT is either the extracted response or nil on failure."
                                agent-type target-kw
                                (if has-error " (ERROR)" ""))
                        "agent-debug" 'no-json))))))))))
-    ;; Close the indirect buffer, folding the subtree in the base buffer
-    (when (and indirect-buf (buffer-live-p indirect-buf))
-      (gptel-org-agent--close-indirect-buffer indirect-buf t))
+    ;; Close the indirect buffer, folding the subtree in the base buffer.
+    ;; Skip when `:from-pending-id' is set — the IB is owned by
+    ;; `gptel-org-agent--update-tool-heading' and must remain alive
+    ;; until that path runs.
+    (let ((from-pending-id (plist-get info :from-pending-id)))
+      (when (and (not from-pending-id)
+                 indirect-buf (buffer-live-p indirect-buf))
+        (gptel-org-agent--close-indirect-buffer indirect-buf t)))
     ;; Clean up the task overlay in the parent buffer
     (when (and ov (overlayp ov) (overlay-buffer ov))
       (delete-overlay ov))
@@ -1910,11 +1928,37 @@ legacy callback-based string accumulation is used."
     (let* ((info (gptel-fsm-info gptel--fsm-last))
            (where (or (plist-get info :tracking-marker)
                       (plist-get info :position)))
-           ;; Try to set up subtree mode for the sub-agent
+           ;; Pending-id of the tool-call dispatch that triggered this
+           ;; Agent invocation.  Bound by
+           ;; `gptel-org-agent--accept-tool-calls' for the duration of
+           ;; the tool function call.  When set, we re-use the existing
+           ;; PENDING IB instead of creating a fresh sub-agent subtree.
+           (pending-id (and (boundp 'gptel-org-agent--dispatching-pending-id)
+                            gptel-org-agent--dispatching-pending-id))
+           ;; Set up subtree mode for the sub-agent.
+           ;;
+           ;; New path (IB-7 / unified pattern): when invoked from a
+           ;; tool-call dispatch with a known pending-id, reuse the
+           ;; existing PENDING IB created by
+           ;; `gptel-org-agent--display-tool-calls' at request-arrival
+           ;; time.  The sub-agent FSM streams into the same IB that
+           ;; later transitions through `--update-tool-heading'.
+           ;;
+           ;; FIXME (legacy fallback): when `pending-id' is nil (e.g.
+           ;; the Agent tool is invoked outside the confirm flow), fall
+           ;; back to `gptel-org-agent--setup-task-subtree', which
+           ;; creates a fresh sub-agent subtree.  Once all callers
+           ;; thread pending-id through, this fallback can be deleted.
            (subtree-info
             (and (bound-and-true-p gptel-org-subtree-context)
-                 (fboundp 'gptel-org-agent--setup-task-subtree)
-                 (gptel-org-agent--setup-task-subtree agent-type description)))
+                 (or
+                  (and pending-id
+                       (fboundp 'gptel-org-agent--pending-tool-subtree-info)
+                       (gptel-org-agent--pending-tool-subtree-info
+                        pending-id))
+                  (and (fboundp 'gptel-org-agent--setup-task-subtree)
+                       (gptel-org-agent--setup-task-subtree
+                        agent-type description)))))
            (prompt-with-dir
             (format "Current working directory: %s\nAll relative paths in tool calls are relative to this directory. Do NOT change directory or resolve the working directory.\n\n%s"
                     work-dir prompt))
@@ -1971,6 +2015,13 @@ legacy callback-based string accumulation is used."
               (plist-put sub-info :agent-heading-marker heading-marker)
               (plist-put sub-info :agent-type agent-type)
               (plist-put sub-info :agent-description description)
+              ;; When dispatched from a PENDING tool-call, record the
+              ;; pending-id so `gptel-agent-subtree--cleanup' knows the
+              ;; IB and heading are owned by `--update-tool-heading'
+              ;; (not by this sub-agent FSM) and skips the close +
+              ;; transition steps.
+              (when pending-id
+                (plist-put sub-info :from-pending-id pending-id))
               (when (and handover (not (eq handover :json-false)))
                 (plist-put sub-info :agent-handover t))))
         ;; ---- LEGACY MODE ----
