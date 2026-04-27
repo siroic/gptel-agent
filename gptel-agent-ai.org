@@ -495,6 +495,107 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 
 * TODOs
 ** Adhoc TODOs
+
+*** AI-DO Allow per-buffer override of subagent-models via org property
+**** Origin
+- User reports that =:SUBAGENT-MODELS:= in a chat buffer's PROPERTIES
+  drawer does not override the active =GPTEL_PRESET=. Example:
+  #+begin_src org
+    ,:PROPERTIES:
+    :GPTEL_PRESET: gptel-agent
+    :SUBAGENT-MODELS: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "DeepSeek/deepseek-v4-flash" ...)
+    ,:END:
+  #+end_src
+- Cross-ref: [[file:../gptel/gptel-ai.org::*Document GPTEL_ prefix requirement]]
+  covers the related =BACKEND=/=MODEL= naming issue. This TODO is the
+  *real bug*: =subagent-models= has no per-buffer override path at all,
+  even with a corrected property name.
+
+**** Discussion highlights
+- =gptel--apply-preset= ([[file:../gptel/gptel.el::3319]]) explicitly
+  skips =:subagent-models= when expanding presets:
+  #+begin_src elisp
+    ((or :parents :description :pre :post :subagent-models) nil)
+  #+end_src
+  So even if a chat-buffer preset carried =:subagent-models=, applying
+  it would not bind anything for downstream code to see.
+- =gptel-agent--get-parent-subagent-model=
+  ([[file:gptel-agent-tools.el::1824]]) reads only from the file-parsed
+  =gptel-agent--agents= alist, keyed by =(symbol-name gptel--preset)=:
+  #+begin_src elisp
+    (parent-plist (cdr (assoc parent-name gptel-agent--agents)))
+    (subagent-models (plist-get parent-plist :subagent-models))
+  #+end_src
+  No buffer-local state, no chat-buffer property, is consulted.
+- =gptel-org--entry-properties= ([[file:../gptel/gptel-org.el::1109]])
+  has no =GPTEL_SUBAGENT_MODELS= entry, so the property would not even
+  be read off the buffer.
+- Net: there is no path by which a user can override =subagent-models=
+  per buffer or per subtree. The only way to change them today is to
+  edit the agent definition file and reload =gptel-agent--agents=.
+
+**** Decisions
+Pick one (default: A):
+- *Option A — Buffer-local override (recommended).* Minimal, localised:
+  1. Add =GPTEL_SUBAGENT_MODELS= to =gptel-org--entry-properties=
+     property list.
+  2. In =gptel-org--restore-state= and =gptel-org--send-with-props=,
+     =read= the property value and bind a buffer-local variable
+     =gptel-agent-subagent-models-override= (plist).
+  3. In =gptel-agent--get-parent-subagent-model=, consult the override
+     first; fall back to =gptel-agent--agents= as today.
+  - Pros: surgical change, doesn't touch core preset machinery, no
+    global mutation.
+  - Cons: introduces gptel-agent awareness in gptel-org property
+    list (already true for =GPTEL_TOOLS=, so precedent exists).
+- *Option B — Mutate =gptel-agent--agents= per buffer.* Apply the
+  property by patching the alist entry for the active preset on
+  buffer setup. Simpler at the lookup site but mutates global state
+  and is brittle when multiple buffers use the same preset
+  concurrently. *Not recommended.*
+- *Option C — Make gptel core honour =:subagent-models= in presets.*
+  Remove =:subagent-models= from the skip list in
+  =gptel--apply-preset=, set a buffer-local variable, and have
+  gptel-agent read that variable. Most general (works for any preset
+  source), but expands gptel core surface and only benefits
+  gptel-agent. *Defer unless a second consumer appears.*
+
+**** Mission (assumes Option A)
+1. *gptel side* (=quelpa/build/gptel/gptel-org.el=):
+   - Add =GPTEL_SUBAGENT_MODELS= to the property list at line 1109.
+   - In =gptel-org--send-with-props=: parse the property string with
+     =read=, set buffer-local =gptel-agent-subagent-models-override=
+     for the duration of the send (let-bind alongside other
+     overrides).
+   - In =gptel-org--restore-state= (line ~1444): same parse+bind on
+     buffer open.
+   - Defensive: catch =read= errors and warn rather than aborting.
+2. *gptel-agent side* (=quelpa/build/gptel-agent/gptel-agent-tools.el=):
+   - Define =defvar-local gptel-agent-subagent-models-override nil=.
+   - In =gptel-agent--get-parent-subagent-model= (line ~1824), check
+     the override first:
+     #+begin_src elisp
+       (subagent-models
+        (or gptel-agent-subagent-models-override
+            (plist-get parent-plist :subagent-models)))
+     #+end_src
+3. *Tests*:
+   - Add a test that sets =GPTEL_SUBAGENT_MODELS= on a chat buffer
+     and verifies =gptel-agent--get-parent-subagent-model= returns
+     the overridden value, falling back to the preset default for
+     unspecified agent types.
+   - Run =cd quelpa/build/gptel/test && make test 2>&1 | tail -30=.
+4. *Docs*: update =gptel-agent-ai.org= subagent-models section to
+   document the new property. Cross-link from
+   [[file:../gptel/gptel-ai.org::*Document GPTEL_ prefix requirement]].
+
+**** Follow-ups (capture if discovered during work)
+- Consider whether =GPTEL_SUBAGENT_MODELS= should be inheritable
+  per-subtree (org property inheritance) the way other =GPTEL_*=
+  properties already are. Likely yes — confirm the property-list
+  read path already uses =org-entry-get ... 'selective= or
+  inheritance flag and behaves consistently.
+
 *** AI-DO Support Siro-AI methodology auto-transitions and commits
 - Origin :: Referenced from [[file:~/siro-ai/siro-ai.org::*Methodology needs gptel-agent support for auto state transitions and commits][siro-ai.org → Adhoc TODO]]. The
   Siro-AI methodology Process (steps 3 and 6) requires gptel-agent
