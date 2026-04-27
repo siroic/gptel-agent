@@ -736,6 +736,10 @@ diagnostics."
     (if (and diffp (not (eq diffp :json-false)))
         (progn                          ;Patch
           (insert new-str-or-diff)
+          ;; Backward search OK: parsing patch headers, not discovering
+          ;; an IB insertion point.  Reads `+++ <path>' lines from the
+          ;; just-inserted patch text to populate the affected-files
+          ;; list for the preview.
           (save-excursion
             (while (re-search-backward "^\\+\\+\\+ \\(.*\\)$" from t)
               (push (match-string 1) files-affected))
