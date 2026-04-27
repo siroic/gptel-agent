@@ -1944,11 +1944,15 @@ legacy callback-based string accumulation is used."
            ;; time.  The sub-agent FSM streams into the same IB that
            ;; later transitions through `--update-tool-heading'.
            ;;
-           ;; FIXME (legacy fallback): when `pending-id' is nil (e.g.
-           ;; the Agent tool is invoked outside the confirm flow), fall
-           ;; back to `gptel-org-agent--setup-task-subtree', which
-           ;; creates a fresh sub-agent subtree.  Once all callers
-           ;; thread pending-id through, this fallback can be deleted.
+           ;; Fallback path: when `pending-id' is nil (e.g. the Agent
+           ;; tool is invoked outside the confirm flow, including
+           ;; non-confirming agent types where no PENDING IB was ever
+           ;; created), fall back to `gptel-org-agent--setup-task-subtree'.
+           ;; Both paths now go through the unified parent-aware API
+           ;; (`gptel-org-ib-insert-child') -- the legacy hand-rolled
+           ;; insertion has been removed.  This fallback is structurally
+           ;; required for non-confirming Agent calls and is no longer a
+           ;; carve-out.
            (subtree-info
             (and (bound-and-true-p gptel-org-subtree-context)
                  (or
