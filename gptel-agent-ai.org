@@ -46,9 +46,10 @@ query goes through the canonical resolvers.
 
 Lifecycle (all in =gptel-indirect-buffer.el=):
 
-- =gptel-org-ib-safe-insert-sibling= — insert the sub-agent's subtree
-  before the parent's =TERMINE= terminator, returning the heading
-  marker.
+- =gptel-org-ib-insert-child= — the single parent-aware insertion API.
+  Inserts a child heading before the parent's =TERMINE= terminator,
+  optionally creates an IB narrowed to the new heading.  Returns a
+  plist with =:heading-marker= and =:indirect-buffer= keys.
 - =gptel-org-ib-create= — open an indirect buffer narrowed to that
   subtree and register a =gptel-org-ib-node= in
   =gptel-org-ib--registry=.
