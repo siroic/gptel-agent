@@ -1,5 +1,6 @@
 #+TITLE: gptel-agent — AI Development Context
 #+DESCRIPTION: Reference document for AI-assisted development of gptel-agent
+#+SEQ_TODO: TODO(t) AI-DO(a) AI-DOING(i) DOING FEEDBACK(f) | AI-DONE(d) DONE(D) ARCHIVED(r) CANCELED(c)
 
 * Overview
 
@@ -496,7 +497,7 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 * TODOs
 ** Adhoc TODOs
 
-*** AI-DO Allow per-buffer override of subagent-models via org property
+*** TODO Allow per-buffer override of subagent-models via org property
 **** Origin
 - User reports that =:SUBAGENT-MODELS:= in a chat buffer's PROPERTIES
   drawer does not override the active =GPTEL_PRESET=. Example:
@@ -596,7 +597,7 @@ Pick one (default: A):
   read path already uses =org-entry-get ... 'selective= or
   inheritance flag and behaves consistently.
 
-*** AI-DO Support Siro-AI methodology auto-transitions and commits
+*** TODO Support Siro-AI methodology auto-transitions and commits
 - Origin :: Referenced from [[file:~/siro-ai/siro-ai.org::*Methodology needs gptel-agent support for auto state transitions and commits][siro-ai.org → Adhoc TODO]]. The
   Siro-AI methodology Process (steps 3 and 6) requires gptel-agent
   to automate git operations and cross-doc TODO state transitions
