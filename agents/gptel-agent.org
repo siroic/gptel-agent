@@ -2,9 +2,9 @@
 :name: gptel-agent
 :description: The default gptel-agent
 :state-words: AGENT AGENTING AGENTED
-:backend: Claude
-:model: claude-opus-4-7
-:subagent-models: (:gatherer "Claude/claude-haiku-4-5-20251001" :executor "Claude/claude-haiku-4-5-20251001" :archive-searcher "Claude/claude-haiku-4-5-20251001" :remote-server "Claude/claude-haiku-4-5-20251001" :researcher "Claude/claude-sonnet-4-6" :introspector "Claude/claude-sonnet-4-6" :researcher-deep "Claude/claude-opus-4-7" :implementer "Claude/claude-opus-4-7" :verifier "Claude/claude-opus-4-7")
+:backend: DeepSeek
+:model: deepseek-v4-pro
+:subagent-models: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "DeepSeek/deepseek-v4-flash" :archive-searcher "DeepSeek/deepseek-v4-flash" :remote-server "DeepSeek/deepseek-v4-flash" :researcher "DeepSeek/deepseek-v4-pro" :introspector "DeepSeek/deepseek-v4-pro" :researcher-deep "DeepSeek/deepseek-v4-pro" :implementer "DeepSeek/deepseek-v4-pro" :verifier "DeepSeek/deepseek-v4-pro")
 :tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
