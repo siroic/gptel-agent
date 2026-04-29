@@ -235,6 +235,7 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
              (agents-list-str
               (cl-loop for entry in gptel-agent--agents
                        unless (or (string= (car entry) name)
+                                  (string= (car entry) "gptel-deepseek")
                                   (string= (car entry) "gptel-smart")
                                   (string= (car entry) "gptel-agent")
                                   (string= (car entry) "gptel-plan")
@@ -256,10 +257,12 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
   ;; Update the enum for Agent tool (exclude top-level agents from sub-agent list)
   (setf (plist-get (car (gptel-tool-args (gptel-get-tool "Agent"))) :enum)
         (vconcat (cl-delete-if
-                  (lambda (name) (member name '("gptel-smart" "gptel-agent" "gptel-triage" "gptel-coordinator" "gptel-dummy")))
+                  (lambda (name) (member name '("gptel-deepseek" "gptel-smart" "gptel-agent" "gptel-triage" "gptel-coordinator" "gptel-dummy")))
                   (mapcar #'car gptel-agent--agents))))
 
   ;; Apply top-level agent presets if they exist
+  (when-let* ((gptel-deepseek-plist (assoc-default "gptel-deepseek" gptel-agent--agents nil nil)))
+    (apply #'gptel-make-preset 'gptel-deepseek gptel-deepseek-plist))
   (when-let* ((gptel-smart-plist (assoc-default "gptel-smart" gptel-agent--agents nil nil)))
     (apply #'gptel-make-preset 'gptel-smart gptel-smart-plist))
   (when-let* ((gptel-agent-plist (assoc-default "gptel-agent" gptel-agent--agents nil nil)))
