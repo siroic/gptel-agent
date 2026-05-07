@@ -2,9 +2,9 @@
 :name: gptel-agent
 :description: The default gptel-agent
 :state-words: AGENT AGENTING AGENTED
-:backend: OpenAI
-:model: gpt-5.5
-:subagent-models: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "DeepSeek/deepseek-v4-pro" :archive-searcher "DeepSeek/deepseek-v4-flash" :remote-server "DeepSeek/deepseek-v4-pro" :researcher "Claude/claude-sonnet-4-6" :introspector "DeepSeek/deepseek-v4-pro" :researcher-deep "Claude/claude-opus-4-7" :implementer "Claude/claude-opus-4-7" :verifier "DeepSeek/deepseek-v4-pro")
+:backend: DeepSeek
+:model: deepseek-v4-pro
+:subagent-models: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "Claude/claude-haiku-4-6" :archive-searcher "DeepSeek/deepseek-v4-flash" :remote-server "DeepSeek/deepseek-v4-pro" :researcher "Claude/claude-sonnet-4-6" :introspector "Claude/claude-sonnet-4-6" :researcher-deep "Claude/claude-opus-4-7" :implementer "Claude/claude-opus-4-7" :verifier "DeepSeek/deepseek-v4-pro")
 :tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
