@@ -498,7 +498,7 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 * TODOs
 ** Adhoc TODOs
 
-*** TODO Fix nil-args crash in =gptel-agent--edit-files-preview-setup=
+*** AI-DONE Fix nil-args crash in =gptel-agent--edit-files-preview-setup=
 **** Origin
 - User hit a hard crash mid-conversation when the model issued an =Edit=
   tool call with only =path= and no =old_str=, =new_str=, or =diff=:
@@ -625,6 +625,38 @@ Implement *Option A + C* in =quelpa/build/gptel-agent/gptel-agent-tools.el=:
    #+end_src
 
 **** Outcomes / Results / Follow-up linked tasks
+- Implemented *Option A + C* in
+  =quelpa/build/gptel-agent/gptel-agent-tools.el=:
+  - =gptel-agent--edit-files-preview-setup=: refactored =if=/=when= into
+    =cond= with three branches (Patch / ReplaceIn / malformed). Patch
+    branch now requires =new-str-or-diff= to be a string; ReplaceIn
+    branch requires =old-str= a string and substitutes ="<missing
+    new_str>"= for nil =new-str-or-diff=; malformed branch sets
+    =description= to ="Edit?"= and inserts a warning-faced placeholder.
+  - =gptel-agent--eval-elisp-preview-setup=: substitutes
+    ="<missing expression>"= when =expr= is nil.
+  - =gptel-agent--execute-bash-preview-setup=: substitutes
+    ="<missing command>"= when =command= is nil.
+  - =gptel-agent--write-file-preview-setup=: substitutes warning-faced
+    ="<missing content>"= when =content= is nil; defends
+    =gptel-agent--fontify-block= with =(or filename "")=.
+  - =gptel-agent--insert-in-file-preview-setup=: shows ="<no path>"=
+    label when =path= is nil; falls through to the [File not readable]
+    branch unless all required args are valid.
+  - =gptel-agent--task-preview-setup=: substitutes ="<no type>"=,
+    ="<no description>"=, ="<no prompt>"= for nil args.
+- Added regression tests in
+  =quelpa/build/gptel-agent/test/gptel-agent-test.el= covering all six
+  preview functions: =gptel-agent-edit-files-preview-setup-handles-nil-args=,
+  =-write-file-=, =-eval-elisp-=, =-execute-bash-=,
+  =-insert-in-file-=, =-task-=. Helper
+  =gptel-agent-test--call-preview= invokes each preview in a temp
+  buffer.
+- Test suite: 41/41 passing
+  (=cd quelpa/build/gptel-agent/test && make test=).
+- Option B (advice-layer arg validation) deferred as follow-up; not
+  yet justified — the defensive previews already prevent the crash and
+  let the user see/reject the malformed call.
 
 *** TODO Allow per-buffer override of subagent-models via org property
 **** Origin
