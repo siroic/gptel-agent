@@ -498,6 +498,134 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 * TODOs
 ** Adhoc TODOs
 
+*** AI-DO Fix nil-args crash in =gptel-agent--edit-files-preview-setup=
+**** Origin
+- User hit a hard crash mid-conversation when the model issued an =Edit=
+  tool call with only =path= and no =old_str=, =new_str=, or =diff=:
+  #+begin_src
+    Debugger entered--Lisp error: (wrong-type-argument stringp nil)
+      gptel-agent--edit-files-preview-setup
+        (("quelpa/build/gptel/test/gptel-org-agent-test.el" nil nil nil) ...)
+  #+end_src
+- The crash happens in the tool-confirmation preview (before the user even
+  approves the call), so the whole =gptel--display-tool-calls= path aborts
+  via =gptel-curl--sentinel=. The conversation is left in a broken state
+  with no chance to reject or repair the malformed call.
+
+**** Discussion highlights
+- =gptel-agent--edit-files-preview-setup= ([[file:gptel-agent-tools.el::731]])
+  destructures =arg-values= as =(path old-str new-str-or-diff diffp)= and
+  has *two* render branches:
+  - Patch branch: =(if (and diffp (not (eq diffp :json-false))) ...)=
+  - Text-replacement branch: =(when old-str ...)=
+- With args =(path nil nil nil)= *both branches are skipped*, so the
+  local =description= is never bound. The crash site is:
+  #+begin_src elisp
+    (insert
+     "(" (propertize description 'font-lock-face 'font-lock-keyword-face)
+     ...)
+  #+end_src
+  =propertize= requires a string; =description= is nil → =stringp nil=.
+- Adjacent latent bug: had =old-str= been a string but =new-str-or-diff=
+  nil, the failure would shift to =(propertize new-str-or-diff ...)=
+  inside the text-replacement branch (line ~759).
+- Tool spec at lines 2272–2316 of =gptel-agent-tools.el=: =new_str= and
+  =diff= are *not* marked =:optional t=, so the model is expected to
+  provide them. But gptel's argument parser fills missing JSON args with
+  nil rather than raising, so the preview function /must/ defend itself.
+- The preview function is dispatched generically through
+  =gptel--tool-preview-alist= (registered at lines 2080–2089). Other
+  preview functions in the same file (=write-file=, =insert-in-file=,
+  =bash=, =eval-elisp=) should be audited for the same nil-arg pattern.
+
+**** Decisions
+Pick one (default: *A + C*):
+- *Option A — Defensive preview-setup (minimum viable fix).* Make
+  =gptel-agent--edit-files-preview-setup= produce a sensible preview
+  even with malformed args: detect the all-nil-edit-args case, set
+  =description= to ="Edit?"= (or similar marker) and =files-affected=
+  to =(list path)=, and skip the body entirely. The user then sees a
+  confirmation overlay clearly labelled as malformed and can reject it.
+  - Pros: surgical, contains the failure to one tool, no flow changes.
+  - Cons: doesn't help other preview functions if they share the bug.
+- *Option B — Validate tool args before invoking preview.* Add a
+  pre-check in the =gptel-org-agent--display-tool-calls-advice=
+  wrapper (or upstream of it) that, for each tool call, verifies all
+  *required* args (per the tool's =:args= spec, ignoring =:optional t=)
+  are non-nil; on failure, short-circuit by returning an error result
+  to the model so it can retry, *without* invoking the preview at all.
+  - Pros: fixes an entire class of bugs (any preview that assumes
+    required args are non-nil); produces a useful error the model can
+    act on; doesn't crash mid-confirmation.
+  - Cons: larger surface, touches the advice/dispatch layer; needs a
+    decision on whether to surface the error to the user or just to
+    the model.
+- *Option C — Audit all preview functions for nil-arg defensiveness.*
+  Sweep =gptel-agent-tools.el= preview-setup functions
+  (=write-file=, =insert-in-file=, =bash=, =eval-elisp=, =task=) and
+  ensure each handles missing required args without crashing.
+  - Pros: hardens the whole tool-preview path.
+  - Cons: pure cleanup work; no single user-visible bug drives it.
+- *Recommended:* *A + C* now (small, targeted, prevents recurrence in
+  other tools); *B* deferred as follow-up if the same failure mode is
+  observed for other tools or if we want the model to see the error.
+
+**** Mission
+Implement *Option A + C* in =quelpa/build/gptel-agent/gptel-agent-tools.el=:
+
+1. Patch =gptel-agent--edit-files-preview-setup= ([[file:gptel-agent-tools.el::731]]):
+   - After destructuring =arg-values=, detect the malformed case
+     (=diffp= falsy/=:json-false= AND =old-str= nil). In that case:
+     - Set =description= to ="Edit?"=.
+     - Set =files-affected= to =(list (or path "<no path>"))=.
+     - Insert a clearly-marked placeholder body, e.g.
+       =(propertize "<malformed Edit call: missing diff/old_str/new_str>"
+       'font-lock-face 'font-lock-warning-face)= followed by a newline.
+     - Skip the existing patch and text-replacement bodies.
+   - Inside the text-replacement branch, also guard against
+     =new-str-or-diff= being nil: substitute ="<empty>"= or skip
+     =propertize= for that piece.
+
+2. Audit and harden the sibling preview-setup functions in the same
+   file. For each, identify which args are dereferenced as strings
+   without a nil guard, and add =or= fallbacks (e.g. =(or path "")=)
+   or early-return placeholders mirroring step 1:
+   - =gptel-agent--write-file-preview-setup=
+   - =gptel-agent--insert-in-file-preview-setup=
+   - =gptel-agent--execute-bash-preview-setup=
+   - =gptel-agent--eval-elisp-preview-setup=
+   - =gptel-agent--task-preview-setup=
+   (Auditor should report which actually had the issue and what was
+   changed; functions already nil-safe need no edit.)
+
+3. Add a regression test under
+   =quelpa/build/gptel/test/= (or the gptel-agent tests, wherever the
+   existing preview tests live — verify by searching for
+   =edit-files-preview-setup= or =write-file-preview-setup= in the
+   test suite). The test should call
+   =gptel-agent--edit-files-preview-setup= with
+   =arg-values= = =("foo.el" nil nil nil)= in a temp buffer and assert
+   that no error is raised and the buffer contains the malformed
+   marker text.
+
+4. Run the gptel test suite to make sure nothing else regressed:
+   =cd quelpa/build/gptel/test && make test 2>&1 | tail -30=.
+
+5. Commit with a message like:
+   #+begin_src
+     fix: defensive preview-setup against nil tool args
+
+     gptel-agent--edit-files-preview-setup crashed with
+     (wrong-type-argument stringp nil) when the model issued an Edit call
+     with only =path=. Both render branches were skipped, leaving
+     =description= nil for a downstream =propertize=.
+
+     Show a clearly-marked malformed-call placeholder instead, and apply
+     the same nil-guard pattern across the other preview-setup functions.
+   #+end_src
+
+**** Outcomes / Results / Follow-up linked tasks
+
 *** TODO Allow per-buffer override of subagent-models via org property
 **** Origin
 - User reports that =:SUBAGENT-MODELS:= in a chat buffer's PROPERTIES
