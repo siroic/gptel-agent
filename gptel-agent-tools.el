@@ -1709,8 +1709,12 @@ ARG-VALUES is a list: (type description prompt)"
         (overlay-put ov 'after-string new-info-msg)))))
 
 (defun gptel-agent--task-overlay (where &optional agent-type description)
-  "Create overlay for agent task at WHERE with AGENT-TYPE and DESCRIPTION."
-  (let* ((bounds                  ;where to place the overlay, handle edge cases
+  "Create overlay for agent task at WHERE with AGENT-TYPE and DESCRIPTION.
+AGENT-TYPE and DESCRIPTION default to placeholder strings when nil, which
+can happen if the model omits these arguments in a tool call."
+  (let* ((agent-type (or agent-type "agent"))
+         (description (or description "(no description)"))
+         (bounds                  ;where to place the overlay, handle edge cases
           (save-excursion
             (goto-char where)
             (when (bobp) (insert "\n"))
