@@ -888,6 +888,46 @@ After applying fixes:
 *** TODO Test gptel-triage with local models
 - Verify tool-calling reliability with qwen3.5:27b (hippo_smart)
 - Test that subagent-models resolution works correctly
+*** AI-DO Improve implementer prompt to reduce context waste
+** Origin
+- User request: "Improve implementer agent to be token efficient"
+- Focus: the implementer is Opus-tier and should avoid reading large content when the task is already well researched.
+
+** Discussion highlights
+- Current =agents/implementer.org= already contains scout-first, targeted-read, and no-full-file-content guidance.
+- The main remaining gap was parity with the coordinator prompt for org-link handling.
+- Added explicit guidance to pass org links to =gatherer= and size =ReadOrgLink= context based on target type.
+- Added explicit self-cost reminder that =implementer= itself is an expensive Opus-tier agent.
+- Existing broader context-management TODO (advisor agent) remains valid but is a separate architectural effort.
+
+** Decisions
+- Keep the solution prompt-level and incremental instead of adding new infrastructure.
+- Prefer better delegation instructions before building advisor/summarizer machinery.
+
+** Mission
+- Maintain and refine =quelpa/build/gptel-agent/agents/implementer.org= so implementer tasks stay narrowly scoped.
+- If future drift appears between =agents/gptel-agent.org= and =agents/implementer.org=, keep the implementer prompt aligned on context-efficiency rules.
+- Consider a future follow-up only if prompt guidance proves insufficient in practice.
+*** AI-DO Improve implementer prompt to reduce context waste
+** Origin
+- User request: "Improve implementer agent to be token efficient"
+- Focus: the implementer is Opus-tier and should avoid reading large content when the task is already well researched.
+
+** Discussion highlights
+- Current =agents/implementer.org= already contains scout-first, targeted-read, and no-full-file-content guidance.
+- The main remaining gap was parity with the coordinator prompt for org-link handling.
+- Added explicit guidance to pass org links to =gatherer= and size =ReadOrgLink= context based on target type.
+- Added explicit self-cost reminder that =implementer= itself is an expensive Opus-tier agent.
+- Existing broader context-management TODO (advisor agent) remains valid but is a separate architectural effort.
+
+** Decisions
+- Keep the solution prompt-level and incremental instead of adding new infrastructure.
+- Prefer better delegation instructions before building advisor/summarizer machinery.
+
+** Mission
+- Maintain and refine =quelpa/build/gptel-agent/agents/implementer.org= so implementer tasks stay narrowly scoped.
+- If future drift appears between =agents/gptel-agent.org= and =agents/implementer.org=, keep the implementer prompt aligned on context-efficiency rules.
+- Consider a future follow-up only if prompt guidance proves insufficient in practice.
 - Check if local models can parse tool results and generate correct tool calls
 - If tool calling is unreliable, the coordinator approach needs rethinking
 *** TODO De-duplicate bash-safety test fixtures

@@ -5,7 +5,7 @@
 :backend: Claude
 :model: claude-opus-4-7
 :subagent-models: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "DeepSeek/deepseek-v4-pro" :archive-searcher "DeepSeek/deepseek-v4-flash" :remote-server "DeepSeek/deepseek-v4-pro" :researcher "Claude/claude-sonnet-4-6" :introspector "DeepSeek/deepseek-v4-pro"  :verifier "Claude/claude-opus-4-7")
-:tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
+:tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
 
@@ -71,6 +71,26 @@ Before reading any file you haven't seen in this conversation, ALWAYS scout it f
 
 *NEVER DELEGATE to =gatherer= to return full file contents:*
 - This wastes gatherer output tokens reproducing the entire file into your context. Ask for specific sections by name or line range.
+
+*Org links → gatherer:*
+When you encounter org-mode links like =[[file:path::42]]= or =[[file:path::*Heading]]= in context, pass them directly to =gatherer= in your delegation prompt. The gatherer has =ReadOrgLink= which resolves the link and returns a targeted snippet — cheaper than reading the whole file.
+
+*Context sizing for org links:*
+When delegating org link resolution, guide the gatherer on how many context lines to request based on what the link points to:
+- Link to a function definition → request enough lines to capture the whole function (for example 30-50 lines)
+- Link to a config line or variable → 5-10 lines is enough
+- Link to a class/struct definition → 20-40 lines
+- When unsure, 15-20 lines is a reasonable default
+
+*Org links → gatherer:*
+When you encounter org-mode links like =[[file:path::42]]= or =[[file:path::*Heading]]= in context, pass them directly to =gatherer= in your delegation prompt. The gatherer has =ReadOrgLink= which resolves the link and returns a targeted snippet — cheaper than reading the whole file.
+
+*Context sizing for org links:*
+When delegating org link resolution, guide the gatherer on how many context lines to request based on what the link points to:
+- Link to a function definition → request enough lines to capture the whole function (for example 30-50 lines)
+- Link to a config line or variable → 5-10 lines is enough
+- Link to a class/struct definition → 20-40 lines
+- When unsure, 15-20 lines is a reasonable default
 
 *** DELEGATE to =researcher= (mid-tier, read-only, for exploration and gathering) when:
 - Open-ended web research (multiple sources, uncertain approach)
@@ -222,7 +242,7 @@ When working on tasks, follow these guidelines for tool selection:
 *Agent tiers by model cost:*
 - *Cheap (Haiku):* =gatherer=, =executor=, =archive-searcher=, =remote-server= — use freely
 - *Mid (Sonnet):* =researcher=, =introspector= — use when exploration/quality matters
-- *Expensive (Opus):* =researcher-deep=, =verifier= — use sparingly, with focused context
+- *Expensive (Opus):* =researcher-deep=, =implementer=, =verifier= — use sparingly, with focused context
 
 *How to write good delegation prompts — include what you already know:*
 
