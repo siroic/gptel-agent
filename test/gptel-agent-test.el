@@ -304,5 +304,77 @@ handler — creating an orphan heading."
           (when (and indirect-buf (buffer-live-p indirect-buf))
             (kill-buffer indirect-buf)))))))
 
+;;; Preview-setup nil-arg defensiveness
+
+(defun gptel-agent-test--call-preview (fn arg-values)
+  "Invoke preview-setup FN with ARG-VALUES in a temp buffer.
+Returns the buffer string on success.  Re-signals errors."
+  (with-temp-buffer
+    (funcall fn arg-values nil)
+    (buffer-substring-no-properties (point-min) (point-max))))
+
+(ert-deftest gptel-agent-edit-files-preview-setup-handles-nil-args ()
+  "Edit preview must not crash when args other than path are nil.
+
+Regression test for the (wrong-type-argument stringp nil) crash that
+occurred when the model issued an Edit call with only =path=."
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--edit-files-preview-setup
+            '("foo.el" nil nil nil))))
+    (should (string-match-p "Edit\\?" s))
+    (should (string-match-p "foo.el" s))
+    (should (string-match-p "malformed Edit call" s)))
+  ;; Patch branch with nil diff payload must not crash.
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--edit-files-preview-setup
+            '("foo.el" nil nil t))))
+    (should (string-match-p "Edit\\?" s)))
+  ;; Text-replacement branch with old-str but nil new-str-or-diff.
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--edit-files-preview-setup
+            '("foo.el" "old" nil nil))))
+    (should (string-match-p "ReplaceIn" s))
+    (should (string-match-p "missing new_str" s))))
+
+(ert-deftest gptel-agent-write-file-preview-setup-handles-nil-args ()
+  "Write preview must not crash when content is nil."
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--write-file-preview-setup
+            '("." "foo.el" nil))))
+    (should (string-match-p "Write" s))
+    (should (string-match-p "missing content" s))))
+
+(ert-deftest gptel-agent-eval-elisp-preview-setup-handles-nil-args ()
+  "Eval preview must not crash when expression is nil."
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--eval-elisp-preview-setup
+            '(nil))))
+    (should (string-match-p "Eval" s))
+    (should (string-match-p "missing expression" s))))
+
+(ert-deftest gptel-agent-execute-bash-preview-setup-handles-nil-args ()
+  "Bash preview must not crash when command is nil."
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--execute-bash-preview-setup
+            '(nil nil))))
+    (should (string-match-p "Bash" s))
+    (should (string-match-p "missing command" s))))
+
+(ert-deftest gptel-agent-insert-in-file-preview-setup-handles-nil-args ()
+  "Insert preview must not crash when args are nil."
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--insert-in-file-preview-setup
+            '(nil nil nil))))
+    (should (string-match-p "insert_into_file" s))
+    (should (string-match-p "File not readable" s))))
+
+(ert-deftest gptel-agent-task-preview-setup-handles-nil-args ()
+  "Agent (task) preview must not crash when args are nil."
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--task-preview-setup
+            '(nil nil nil))))
+    (should (string-match-p "Agent" s))
+    (should (string-match-p "no type" s))))
+
 (provide 'gptel-agent-test)
 ;;; gptel-agent-test.el ends here

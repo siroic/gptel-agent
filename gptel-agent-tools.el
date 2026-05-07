@@ -204,7 +204,7 @@ properties persist through refontification."
   "Setup preview overlay for Elisp evaluation tool call.
 
 ARG-VALUES is the list of arguments for the tool call."
-  (let ((expr (car arg-values))
+  (let ((expr (or (car arg-values) "<missing expression>"))
         (from (point)) (inner-from))
     (insert
      "(" (propertize "Eval" 'font-lock-face 'font-lock-keyword-face)
@@ -224,7 +224,8 @@ ARG-VALUES is the list of arguments for the tool call."
 ARG-VALUES is the list of arguments for the tool call."
   (pcase-let ((from (point))
               (`(,command ,sudo) arg-values))
-    (let ((sudo (and sudo (not (eq sudo :json-false)))))
+    (let ((sudo (and sudo (not (eq sudo :json-false))))
+          (command (or command "<missing command>")))
       (insert
        "(" (propertize "Bash" 'font-lock-face 'font-lock-keyword-face)
        (if sudo
@@ -733,34 +734,43 @@ diagnostics."
   (pcase-let ((from (point)) (files-affected) (description)
               (`(,path ,old-str ,new-str-or-diff ,diffp) arg-values))
 
-    (if (and diffp (not (eq diffp :json-false)))
-        (progn                          ;Patch
-          (insert new-str-or-diff)
-          ;; Backward search OK: parsing patch headers, not discovering
-          ;; an IB insertion point.  Reads `+++ <path>' lines from the
-          ;; just-inserted patch text to populate the affected-files
-          ;; list for the preview.
-          (save-excursion
-            (while (re-search-backward "^\\+\\+\\+ \\(.*\\)$" from t)
-              (push (match-string 1) files-affected))
-            (goto-char from)
-            (when (looking-at "^ *```\\(diff\\|patch\\)\\s-*\n")
-              (delete-region (match-beginning 0) (match-end 0))))
-          (skip-chars-backward " \t\r\n")
-          (when (looking-back "^ *```\\s-*\\'" (line-beginning-position))
-            (delete-region (line-beginning-position) (line-end-position)))
-          (setq description "Patch")
-          (require 'diff-mode)
-          (gptel-agent--fontify-block 'diff-mode from (point)))
-      (when old-str                     ;Text replacement
-        (push path files-affected)
-        (setq description "ReplaceIn")
-        (insert
-         (propertize old-str 'font-lock-face 'diff-removed
-                     'line-prefix (propertize "-" 'face 'diff-removed))
-         "\n" (propertize new-str-or-diff 'font-lock-face 'diff-added
-                          'line-prefix (propertize "+" 'face 'diff-added))
-         "\n")))
+    (cond
+     ((and diffp (not (eq diffp :json-false)) (stringp new-str-or-diff))
+      ;; Patch
+      (insert new-str-or-diff)
+      ;; Backward search OK: parsing patch headers, not discovering
+      ;; an IB insertion point.  Reads `+++ <path>' lines from the
+      ;; just-inserted patch text to populate the affected-files
+      ;; list for the preview.
+      (save-excursion
+        (while (re-search-backward "^\\+\\+\\+ \\(.*\\)$" from t)
+          (push (match-string 1) files-affected))
+        (goto-char from)
+        (when (looking-at "^ *```\\(diff\\|patch\\)\\s-*\n")
+          (delete-region (match-beginning 0) (match-end 0))))
+      (skip-chars-backward " \t\r\n")
+      (when (looking-back "^ *```\\s-*\\'" (line-beginning-position))
+        (delete-region (line-beginning-position) (line-end-position)))
+      (setq description "Patch")
+      (require 'diff-mode)
+      (gptel-agent--fontify-block 'diff-mode from (point)))
+     ((stringp old-str)                 ;Text replacement
+      (push (or path "<no path>") files-affected)
+      (setq description "ReplaceIn")
+      (insert
+       (propertize old-str 'font-lock-face 'diff-removed
+                   'line-prefix (propertize "-" 'face 'diff-removed))
+       "\n" (propertize (or new-str-or-diff "<missing new_str>")
+                        'font-lock-face 'diff-added
+                        'line-prefix (propertize "+" 'face 'diff-added))
+       "\n"))
+     (t                                 ;Malformed: nothing to render
+      (push (or path "<no path>") files-affected)
+      (setq description "Edit?")
+      (insert
+       (propertize "<malformed Edit call: missing diff/old_str/new_str>"
+                   'font-lock-face 'font-lock-warning-face)
+       "\n")))
     (insert "\n")
     (font-lock-append-text-property
      from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
@@ -959,10 +969,11 @@ ARG-VALUES is a list: (path line-number new-str)"
     (pcase-let ((`(,path ,line-number ,new-str) arg-values))
       (insert "("
               (propertize "insert_into_file " 'font-lock-face 'font-lock-keyword-face)
-              (propertize (concat "\"" path "\"")
+              (propertize (concat "\"" (or path "<no path>") "\"")
                           'font-lock-face 'font-lock-constant-face)
               ")\n")
-      (if (file-readable-p path)
+      (if (and (stringp path) (stringp new-str) (integerp line-number)
+               (file-readable-p path))
           (insert
            (with-temp-buffer       ;NEW-STR with context lines, styled as a diff
              (insert-file-contents path)
@@ -1041,8 +1052,10 @@ ARG-VALUES is the list of arguments for the tool call."
      (propertize (prin1-to-string filename) 'font-lock-face 'font-lock-constant-face)
      ")\n")
     (let ((inner-from (point)))
-      (insert content)
-      (gptel-agent--fontify-block filename inner-from (point))
+      (insert (or content
+                  (propertize "<missing content>"
+                              'font-lock-face 'font-lock-warning-face)))
+      (gptel-agent--fontify-block (or filename "") inner-from (point))
       (insert "\n\n")
       (font-lock-append-text-property
        inner-from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
@@ -1639,12 +1652,12 @@ ARG-VALUES is a list: (type description prompt)"
               (`(,type ,desc ,prompt) arg-values))
     (insert "("
             (propertize "Agent " 'font-lock-face 'font-lock-keyword-face)
-            (propertize (prin1-to-string type)
+            (propertize (prin1-to-string (or type "<no type>"))
                         'font-lock-face 'font-lock-escape-face)
-            " " (propertize (prin1-to-string desc)
+            " " (propertize (prin1-to-string (or desc "<no description>"))
                             'font-lock-face
                             '(:inherit font-lock-constant-face :inherit bold))
-            "\n" (propertize (prin1-to-string prompt)
+            "\n" (propertize (prin1-to-string (or prompt "<no prompt>"))
                              'line-prefix "  "
                              'wrap-prefix "  "
                              'font-lock-face 'font-lock-constant-face)
