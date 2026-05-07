@@ -498,7 +498,7 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 * TODOs
 ** Adhoc TODOs
 
-*** AI-DO Fix nil-args crash in =gptel-agent--edit-files-preview-setup=
+*** TODO Fix nil-args crash in =gptel-agent--edit-files-preview-setup=
 **** Origin
 - User hit a hard crash mid-conversation when the model issued an =Edit=
   tool call with only =path= and no =old_str=, =new_str=, or =diff=:
