@@ -888,7 +888,18 @@ After applying fixes:
 *** TODO Test gptel-triage with local models
 - Verify tool-calling reliability with qwen3.5:27b (hippo_smart)
 - Test that subagent-models resolution works correctly
-*** AI-DO Improve implementer prompt to reduce context waste
+*** AI-DONE Improve implementer prompt to reduce context waste
+** Outcomes / Results
+- Rewrote =agents/implementer.org= to match or exceed main agent delegation aggressiveness
+- Removed duplicate "Org links → gatherer" and "Context sizing for org links" sections
+- Made "Handle inline" MORE restrictive (only trivially small single-line edits or when delegation overhead exceeds savings)
+- Added "Default posture: NO — delegate it" mindset paragraph
+- Added missing key signals: mutating git commands → executor
+- Added missing pattern matches: "I need to understand..." → researcher, "have we worked on X before" → archive-searcher, remote server patterns
+- Added all 5 key principles (gatherer vs researcher vs researcher-deep, executor vs verifier, implementer vs verifier, archive-searcher, remote-server)
+- Strengthened MANDATORY delegation scenarios with bolded git commit entry
+- Added explicit "Git commits are ALWAYS delegated to executor, never inline" with cost justification
+- Commit: =3685457= "Make implementer delegate as aggressively as main agent"
 ** Origin
 - User request: "Improve implementer agent to be token efficient"
 - Focus: the implementer is Opus-tier and should avoid reading large content when the task is already well researched.
