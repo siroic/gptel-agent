@@ -500,7 +500,7 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 * TODOs
 ** Adhoc TODOs
 
-*** AI-DO DeepSeek tool launch nil-args root cause fix
+*** AI-DONE DeepSeek tool launch nil-args root cause fix
 **** Origin
 - DeepSeek reasoning models emit tool calls where :arguments can be nil/null
 - gptel-openai.el wraps json-parse-string in ignore-errors, silently swallowing the wrong-type-argument stringp nil error 
@@ -514,6 +514,10 @@ sub-agent is spawned with =handover=true=.  See [[*Tool Call Info Plist (FSM con
 **** Mission
 Implemented in this task — mark as AI-DONE after verification
 
+**** Outcomes / Results
+- gptel repo (commit 6dbb5b1): Guarded :arguments with stringp check before json-parse-string in both streaming and non-streaming paths; default nil :args to empty plist in gptel--handle-tool-use; added warning log when args is nil
+- gptel-agent repo (commit 392b565): Added stringp guard for path/old-str/new-str as first check in --edit-file; added regression test (4 nil-arg cases); gptel-agent tests 43/43 passing
+- gptel tests: 480/484 (1 pre-existing unrelated failure in gptel-org-agent-respond-text-no-same-line-terminator)
 *** AI-DONE Fix nil-args crash in =gptel-agent--edit-files-preview-setup=
 **** Origin
 - User hit a hard crash mid-conversation when the model issued an =Edit=
