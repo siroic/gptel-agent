@@ -889,7 +889,7 @@ After applying fixes:
 - Verify tool-calling reliability with qwen3.5:27b (hippo_smart)
 - Test that subagent-models resolution works correctly
 *** AI-DONE Improve implementer prompt to reduce context waste
-** Outcomes / Results
+**** Outcomes / Results
 - Rewrote =agents/implementer.org= to match or exceed main agent delegation aggressiveness
 - Removed duplicate "Org links → gatherer" and "Context sizing for org links" sections
 - Made "Handle inline" MORE restrictive (only trivially small single-line edits or when delegation overhead exceeds savings)
@@ -900,29 +900,29 @@ After applying fixes:
 - Strengthened MANDATORY delegation scenarios with bolded git commit entry
 - Added explicit "Git commits are ALWAYS delegated to executor, never inline" with cost justification
 - Commit: =3685457= "Make implementer delegate as aggressively as main agent"
-** Origin
+**** Origin
 - User request: "Improve implementer agent to be token efficient"
 - Focus: the implementer is Opus-tier and should avoid reading large content when the task is already well researched.
 
-** Discussion highlights
+**** Discussion highlights
 - Current =agents/implementer.org= already contains scout-first, targeted-read, and no-full-file-content guidance.
 - The main remaining gap was parity with the coordinator prompt for org-link handling.
 - Added explicit guidance to pass org links to =gatherer= and size =ReadOrgLink= context based on target type.
 - Added explicit self-cost reminder that =implementer= itself is an expensive Opus-tier agent.
 - Existing broader context-management TODO (advisor agent) remains valid but is a separate architectural effort.
 
-** Decisions
+**** Decisions
 - Keep the solution prompt-level and incremental instead of adding new infrastructure.
 - Prefer better delegation instructions before building advisor/summarizer machinery.
 
-** Mission
+**** Mission
 - Maintain and refine =quelpa/build/gptel-agent/agents/implementer.org= so implementer tasks stay narrowly scoped.
 - If future drift appears between =agents/gptel-agent.org= and =agents/implementer.org=, keep the implementer prompt aligned on context-efficiency rules.
 - Consider a future follow-up only if prompt guidance proves insufficient in practice.
 - Check if local models can parse tool results and generate correct tool calls
 - If tool calling is unreliable, the coordinator approach needs rethinking
 
-*** AI-DO Improve Insert, Edit, Write tool definitions for LLM reliability
+*** TODO Improve Insert, Edit, Write tool definitions for LLM reliability
 **** Origin
 - User report: "At least deepseek have challenges to make correct tool
   request — Sometimes missing path, diff, etc."
@@ -1024,6 +1024,8 @@ which parameters must always be present.
 *Leaning: Option C* — single =file-path= for Write is the most impactful
 fix for DeepSeek.  Explicit =mode= for Edit reduces ambiguity without
 adding tool count.  Both are backward-compatible via shims.
+
+***** FEEDBACK Option D sounds to be best solution                :petri:
 
 **** Mission
 - [ ] Fix =gptel-agent--insert-in-file= docstring: =N >= 1 inserts after line N=
