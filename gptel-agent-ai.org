@@ -1109,7 +1109,7 @@ package, those stubs should no longer be necessary. Remove them and
 confirm =make test= still passes; if a real binding is needed, pull it
 from the proper defining module instead of stubbing.
 
-*** TODO Create implementer-complex agent (Opus, coordinator-based)
+*** AI-DONE Create implementer-complex agent (Opus, coordinator-based)
 **** Origin
 - User request: Study possibility of =implementer-complex= that uses the
   best/most expensive model (Opus), derived from the main coordinator
@@ -1174,3 +1174,13 @@ from the proper defining module instead of stubbing.
 - Confirm implementer-complex SHOULD be able to delegate to implementer
 - Confirm model: Claude Opus 4.7 (=claude-opus-4-7=)
 - Confirm state words: =IMPLEMENT-COMPLEX / IMPLEMENTING-COMPLEX / IMPLEMENTED-COMPLEX=
+
+**** Outcomes / Results
+- Created =agents/implementer-complex.org= (533 lines) — derived from coordinator prompt with implementation-specific sections merged
+- Uses Claude Opus 4.7, state words: =IMPLEMENT-COMPLEX / IMPLEMENTING-COMPLEX / IMPLEMENTED-COMPLEX=
+- Can delegate to =implementer=; cannot delegate to itself or =researcher-deep=
+- Added to Agent tool enum in =gptel-agent-tools.el=
+- Registered =:implementer-complex "Claude/claude-opus-4-7"= in all 6 agent presets (gptel-agent, gptel-deepseek, gptel-smart, gptel-coordinator, gptel-triage, gptel-dummy)
+- Updated =gptel-agent-ai.org=: agent definition table + state triads table
+- All 42 tests pass
+- Commit: 610323f
