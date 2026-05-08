@@ -239,6 +239,7 @@ Located in =agents/= subdirectory as =.org= files. Loaded via =gptel-agent-dirs=
 | =gptel-plan= | Planning with read-only access | Read-only filesystem |
 | =executor= | Autonomous multi-step task execution (Haiku) | All tools |
 | =implementer= | Focused implementation: file creation/modification (Opus). Cannot delegate to itself; delegates to =verifier= on test failures. | All tools |
+| =implementer-complex= | Complex multi-step implementation with broad delegation (Opus, coordinator-based). Can delegate to =implementer=; cannot delegate to itself. | All tools |
 | =verifier= | Post-implementation verification and fixing: tests, compilation, lint failures (Opus). Receives synthesized focused context from main/implementer; starts with a fresh small context. Cannot delegate to =implementer= or =verifier=. | All tools |
 | =researcher= | Codebase/web exploration (Sonnet) | Read-only file + web |
 | =researcher-deep= | Deep analysis and debugging (Opus) | Read-only file + web |
@@ -284,6 +285,7 @@ Current triads for registered built-in agents:
 | =gptel-plan= | =PLAN= | =PLANNING= | =PLANNED= |
 | =executor= | =EXECUTE= | =EXECUTING= | =EXECUTED= |
 | =implementer= | =IMPLEMENT= | =IMPLEMENTING= | =IMPLEMENTED= |
+| =implementer-complex= | =IMPLEMENT-COMPLEX= | =IMPLEMENTING-COMPLEX= | =IMPLEMENTED-COMPLEX= |
 | =verifier= | =VERIFY= | =VERIFYING= | =VERIFIED= |
 | =researcher= | =RESEARCH= | =RESEARCHING= | =RESEARCHED= |
 | =researcher-deep= | =DEEP-RESEARCH= | =DEEP-RESEARCHING= | =DEEP-RESEARCHED= |
@@ -1107,7 +1109,7 @@ package, those stubs should no longer be necessary. Remove them and
 confirm =make test= still passes; if a real binding is needed, pull it
 from the proper defining module instead of stubbing.
 
-*** AI-DO Create implementer-complex agent (Opus, coordinator-based)
+*** TODO Create implementer-complex agent (Opus, coordinator-based)
 **** Origin
 - User request: Study possibility of =implementer-complex= that uses the
   best/most expensive model (Opus), derived from the main coordinator
@@ -1126,17 +1128,17 @@ from the proper defining module instead of stubbing.
   instructions are less comprehensive than the coordinator's.
 - Key differences analyzed:
 
-| Aspect | coordinator | implementer |
-|--------+-------------+-------------|
-| Role | Orchestration | Implementation |
-| Model | DeepSeek v4 Pro | Claude Opus (overridden to DeepSeek by gptel-agent preset) |
-| Delegates to researcher-deep | Yes | Yes |
-| Delegates to implementer | Yes | No (self) |
-| Full tool docs | Yes (ReadOrgLink, Glob, Grep, Read, Insert, Edit, Write, Bash, Eval, WebSearch, WebFetch) | Abbreviated |
-| Code quality section | No | Yes |
-| Git workflow section | No | Yes |
-| Output requirements | No | Yes |
-| Writing Code section | No | Yes |
+| Aspect                       | coordinator                                                                               | implementer                                                |
+|------------------------------+-------------------------------------------------------------------------------------------+------------------------------------------------------------|
+| Role                         | Orchestration                                                                             | Implementation                                             |
+| Model                        | DeepSeek v4 Pro                                                                           | Claude Opus (overridden to DeepSeek by gptel-agent preset) |
+| Delegates to researcher-deep | Yes                                                                                       | Yes                                                        |
+| Delegates to implementer     | Yes                                                                                       | No (self)                                                  |
+| Full tool docs               | Yes (ReadOrgLink, Glob, Grep, Read, Insert, Edit, Write, Bash, Eval, WebSearch, WebFetch) | Abbreviated                                                |
+| Code quality section         | No                                                                                        | Yes                                                        |
+| Git workflow section         | No                                                                                        | Yes                                                        |
+| Output requirements          | No                                                                                        | Yes                                                        |
+| Writing Code section         | No                                                                                        | Yes                                                        |
 
 - =implementer-complex= design: start from coordinator prompt, then:
   1. Change role from orchestration to implementation

@@ -2482,7 +2482,7 @@ Use for open-ended searches, complex research, or when uncertain about finding r
            :type string
            :enum ["researcher" "researcher-deep" "remote-server"
                   "introspector" "gptel-plan" "gatherer" "executor"
-                  "implementer" "verifier" "archive-searcher" "handover"]
+                  "implementer" "implementer-complex" "verifier" "archive-searcher" "handover"]
            :description "The type of specialized agent to use for this task")
          ( :name "description"
            :type string
