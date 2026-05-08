@@ -1106,3 +1106,69 @@ could be loaded in isolation. With the new Makefile loading the full
 package, those stubs should no longer be necessary. Remove them and
 confirm =make test= still passes; if a real binding is needed, pull it
 from the proper defining module instead of stubbing.
+
+*** AI-DO Create implementer-complex agent (Opus, coordinator-based)
+**** Origin
+- User request: Study possibility of =implementer-complex= that uses the
+  best/most expensive model (Opus), derived from the main coordinator
+  prompt rather than the current implementer prompt.
+- Current =implementer= will remain on DeepSeek v4 Pro for routine tasks;
+  =implementer-complex= is for when user explicitly wants maximum quality.
+
+**** Discussion highlights / Study results
+- =gptel-coordinator.org= (315 lines) has the superior delegation
+  framework — detailed tool docs, aggressive delegation patterns,
+  comprehensive MANDATORY delegation scenarios. This is the main agent
+  prompt the user is interacting with now.
+- =implementer.org= (386 lines) has implementation-specific sections
+  (=* Writing Code=, =* Code quality=, =* Git workflow=, =* Output
+  requirements=) that the coordinator lacks, but its delegation
+  instructions are less comprehensive than the coordinator's.
+- Key differences analyzed:
+
+| Aspect | coordinator | implementer |
+|--------+-------------+-------------|
+| Role | Orchestration | Implementation |
+| Model | DeepSeek v4 Pro | Claude Opus (overridden to DeepSeek by gptel-agent preset) |
+| Delegates to researcher-deep | Yes | Yes |
+| Delegates to implementer | Yes | No (self) |
+| Full tool docs | Yes (ReadOrgLink, Glob, Grep, Read, Insert, Edit, Write, Bash, Eval, WebSearch, WebFetch) | Abbreviated |
+| Code quality section | No | Yes |
+| Git workflow section | No | Yes |
+| Output requirements | No | Yes |
+| Writing Code section | No | Yes |
+
+- =implementer-complex= design: start from coordinator prompt, then:
+  1. Change role from orchestration to implementation
+  2. Remove =researcher-deep= delegation (coordinator-level analysis stays
+     with main agent; implementer-complex should just implement)
+  3. Add =implementer-complex= to "never delegate" list (can't delegate to self)
+  4. Keep =implementer= delegation (different agent, uses DeepSeek v4 Pro)
+  5. Keep all other delegation (gatherer, researcher, executor, verifier, etc.)
+  6. Merge implementation-specific sections from current =implementer.org=
+     (=* Writing Code=, =* Code quality=, =* Git workflow=, =* Output requirements=)
+  7. Use Claude Opus model, no model override in gptel-agent preset
+  8. State words: =IMPLEMENT-COMPLEX IMPLEMENTING-COMPLEX IMPLEMENTED-COMPLEX=
+  9. Add =implementer-complex= to the =Agent= tool's =:enum= in
+     =gptel-agent-tools.el= line 2485
+  10. Register in all agent presets that list subagent-models
+      (=gptel-agent=, =gptel-deepseek=, =gptel-smart=, =gptel-coordinator=,
+      =gptel-triage=, =gptel-dummy=)
+
+**** Implementation plan (separate implementer dispatches)
+1. Create =agents/implementer-complex.org= — start from coordinator.org,
+   apply all modifications above.
+2. Update =gptel-agent-tools.el= — add =implementer-complex= to the
+   =Agent= tool enum.
+3. Update all agent presets' =:subagent-models:= to include
+   =:implementer-complex "Claude/claude-opus-4-7"=.
+4. Update the agent definition table in =gptel-agent-ai.org=.
+5. Update the state triads table in =gptel-agent-ai.org=.
+6. Commit with message: "Add implementer-complex agent (Opus, coordinator-based)"
+
+**** Decisions needed from user
+- Confirm the approach: coordinator-based with implementation sections merged in
+- Confirm researcher-deep should NOT be available to implementer-complex
+- Confirm implementer-complex SHOULD be able to delegate to implementer
+- Confirm model: Claude Opus 4.7 (=claude-opus-4-7=)
+- Confirm state words: =IMPLEMENT-COMPLEX / IMPLEMENTING-COMPLEX / IMPLEMENTED-COMPLEX=
