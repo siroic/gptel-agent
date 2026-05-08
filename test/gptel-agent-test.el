@@ -329,6 +329,28 @@ Returns the buffer string on success.  Re-signals errors."
             (list "some/path" "old" nil))))
     (should (string-match-p "Edit" s))))
 
+(ert-deftest gptel-agent-edit-file-handles-nil-args ()
+  "`gptel-agent--edit-file' must signal a clean error (not wrong-type-argument)
+when called with nil args, as can happen if the model emits :arguments=null and
+JSON parsing yields nil."
+  ;; All nil — regression for DeepSeek :arguments=null crash
+  (let ((err (should-error (gptel-agent--edit-file nil nil nil) :type 'error)))
+    (should (eq (car err) 'error))
+    (should-not (eq (car err) 'wrong-type-argument))
+    (should (string-match-p "string parameters" (cadr err))))
+  ;; Path nil, others strings
+  (let ((err (should-error (gptel-agent--edit-file nil "old" "new") :type 'error)))
+    (should (eq (car err) 'error))
+    (should-not (eq (car err) 'wrong-type-argument)))
+  ;; old-str nil
+  (let ((err (should-error (gptel-agent--edit-file "/tmp/x" nil "new") :type 'error)))
+    (should (eq (car err) 'error))
+    (should-not (eq (car err) 'wrong-type-argument)))
+  ;; new-str nil
+  (let ((err (should-error (gptel-agent--edit-file "/tmp/x" "old" nil) :type 'error)))
+    (should (eq (car err) 'error))
+    (should-not (eq (car err) 'wrong-type-argument))))
+
 (ert-deftest gptel-agent-patch-file-preview-setup-handles-nil-args ()
   "Patch preview must not crash when args are nil."
   (let ((s (gptel-agent-test--call-preview

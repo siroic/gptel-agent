@@ -869,6 +869,9 @@ OLD-STR - Exact text to find and replace
 NEW-STR - Replacement text
 
 Returns success message, or signals an error on failure."
+  (unless (and (stringp path) (stringp old-str) (stringp new-str))
+    (error "Error: Edit requires path, old_str, and new_str string parameters (got: %S %S %S)"
+           path old-str new-str))
   (unless (file-readable-p path)
     (error "Error: File %s is not readable" path))
   (when (file-directory-p path)
