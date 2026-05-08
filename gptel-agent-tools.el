@@ -729,61 +729,80 @@ diagnostics."
 ;;; Filesystem tools
 ;;;; Make directories
 ;;;; Writing to files
-(defun gptel-agent--edit-files-preview-setup (arg-values _info)
-  "Insert tool call preview for ARG-VALUES for \"Edit\" tool."
-  (pcase-let ((from (point)) (files-affected) (description)
-              (`(,path ,old-str ,new-str-or-diff ,diffp) arg-values))
-
-    (cond
-     ((and diffp (not (eq diffp :json-false)) (stringp new-str-or-diff))
-      ;; Patch
-      (insert new-str-or-diff)
-      ;; Backward search OK: parsing patch headers, not discovering
-      ;; an IB insertion point.  Reads `+++ <path>' lines from the
-      ;; just-inserted patch text to populate the affected-files
-      ;; list for the preview.
-      (save-excursion
-        (while (re-search-backward "^\\+\\+\\+ \\(.*\\)$" from t)
-          (push (match-string 1) files-affected))
-        (goto-char from)
-        (when (looking-at "^ *```\\(diff\\|patch\\)\\s-*\n")
-          (delete-region (match-beginning 0) (match-end 0))))
-      (skip-chars-backward " \t\r\n")
-      (when (looking-back "^ *```\\s-*\\'" (line-beginning-position))
-        (delete-region (line-beginning-position) (line-end-position)))
-      (setq description "Patch")
-      (require 'diff-mode)
-      (gptel-agent--fontify-block 'diff-mode from (point)))
-     ((stringp old-str)                 ;Text replacement
-      (push (or path "<no path>") files-affected)
-      (setq description "ReplaceIn")
+(defun gptel-agent--edit-file-preview-setup (arg-values _info)
+  "Insert tool call preview for ARG-VALUES for \"Edit\" tool.
+ARG-VALUES is a list: (path old-str new-str)"
+  (pcase-let ((from (point))
+              (`(,path ,old-str ,new-str) arg-values))
+    (insert
+     "(" (propertize "Edit " 'font-lock-face 'font-lock-keyword-face)
+     (propertize (concat "\"" (or path "<no path>") "\"")
+                 'font-lock-face 'font-lock-constant-face)
+     ")\n")
+    (if (stringp old-str)
+        (progn
+          (insert
+           (propertize old-str 'font-lock-face 'diff-removed
+                       'line-prefix (propertize "-" 'face 'diff-removed))
+           "\n" (propertize (or new-str "<missing new_str>")
+                            'font-lock-face 'diff-added
+                            'line-prefix (propertize "+" 'face 'diff-added))
+           "\n"))
       (insert
-       (propertize old-str 'font-lock-face 'diff-removed
-                   'line-prefix (propertize "-" 'face 'diff-removed))
-       "\n" (propertize (or new-str-or-diff "<missing new_str>")
-                        'font-lock-face 'diff-added
-                        'line-prefix (propertize "+" 'face 'diff-added))
-       "\n"))
-     (t                                 ;Malformed: nothing to render
-      (push (or path "<no path>") files-affected)
-      (setq description "Edit?")
-      (insert
-       (propertize "<malformed Edit call: missing diff/old_str/new_str>"
+       (propertize "<malformed Edit call: missing old_str or new_str>"
                    'font-lock-face 'font-lock-warning-face)
-       "\n")))
-    (insert "\n")
+       "\n"))
     (font-lock-append-text-property
      from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
     (when (derived-mode-p 'org-mode)
       (org-escape-code-in-region from (1- (point))))
-    (save-excursion
-      (goto-char from)
+    (gptel-agent--confirm-overlay from (point) t)))
+
+(defun gptel-agent--patch-file-preview-setup (arg-values _info)
+  "Insert tool call preview for ARG-VALUES for \"Patch\" tool.
+ARG-VALUES is a list: (path diff)"
+  (pcase-let ((from (point)) (files-affected)
+              (`(,path ,diff) arg-values))
+    (cond
+     ((stringp diff)
+      (insert diff)
+      (save-excursion
+        (while (re-search-backward "^\\+\\+\\+ \\(.*\\)$" from t)
+          (push (match-string 1) files-affected))
+        (goto-char from)
+        (when (looking-at "^ *=\\(diff\\|patch\\)\\s-*\n")
+          (delete-region (match-beginning 0) (match-end 0))))
+      (skip-chars-backward " \t\r\n")
+      (when (looking-back "^ /=\\s-*\\'" (line-beginning-position))
+        (delete-region (line-beginning-position) (line-end-position)))
+      (require 'diff-mode)
+      (gptel-agent--fontify-block 'diff-mode from (point))
+      (insert "\n")
+      (font-lock-append-text-property
+       from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
+      (when (derived-mode-p 'org-mode)
+        (org-escape-code-in-region from (1- (point))))
+      (save-excursion
+        (goto-char from)
+        (insert
+         "(" (propertize "Patch" 'font-lock-face 'font-lock-keyword-face)
+         " " (mapconcat (lambda (f) (propertize (concat "\"" f "\"")
+                                           'font-lock-face 'font-lock-constant-face))
+                        (or files-affected (list (or path "<no path>"))) " ")
+         ")\n")))
+     (t
       (insert
-       "(" (propertize description 'font-lock-face 'font-lock-keyword-face)
-       " " (mapconcat (lambda (f) (propertize (concat "\"" f "\"")
-                                         'font-lock-face 'font-lock-constant-face))
-                      files-affected " ")
-       ")\n"))
+       "(" (propertize "Patch " 'font-lock-face 'font-lock-keyword-face)
+       (propertize (concat "\"" (or path "<no path>") "\"")
+                   'font-lock-face 'font-lock-constant-face)
+       ")\n"
+       (propertize "<malformed Patch call: missing diff>"
+                   'font-lock-face 'font-lock-warning-face)
+       "\n")
+      (font-lock-append-text-property
+       from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
+      (when (derived-mode-p 'org-mode)
+        (org-escape-code-in-region from (1- (point))))))
     (gptel-agent--confirm-overlay from (point) t)))
 
 (defun gptel-agent--fix-patch-headers ()
@@ -836,128 +855,99 @@ directory to create."
         (format "Directory %s created/verified in %s" name parent))
     (error "Error creating directory %s in %s:\n%S" name parent errdata)))
 
-(defun gptel-agent--edit-files (path &optional old-str new-str-or-diff diffp)
-  "Replace text in file(s) at PATH using either string matching or unified diff.
+(defun gptel-agent--edit-file (path old-str new-str)
+  "Replace OLD-STR with NEW-STR in the file at PATH.
 
-This function supports two distinct modes of operation:
+OLD-STR must match exactly once (uniquely) in the file.  Include
+enough context around the change to make the match unambiguous.
 
-1. STRING REPLACEMENT MODE (DIFFP is nil or :json-false):
-   - Searches for OLD-STR in the file at PATH
-   - Replaces it with NEW-STR-OR-DIFF
-   - Requires OLD-STR to match exactly once (uniquely) in the file
-   - Only works on single files, not directories
+For changes spanning multiple files or requiring diff/patch
+application, use the \"Patch\" tool instead.
 
-2. DIFF/PATCH MODE (when DIFFP is non-nil and not :json-false):
-   - Applies NEW-STR-OR-DIFF as a unified diff using the `patch` command
-   - Works on both single files and directories
-   - OLD-STR is ignored in this mode
-   - NEW-STR-OR-DIFF can contain the diff in fenced code blocks
-     (=diff or =patch)
-   - Uses the -N (--forward) option to ignore already-applied patches
+PATH - File path to modify (must be readable, not a directory)
+OLD-STR - Exact text to find and replace
+NEW-STR - Replacement text
 
-PATH - File or directory path to modify (must be readable)
-OLD-STR - (String mode only) Exact text to find and replace
-NEW-STR-OR-DIFF - Replacement text (string mode) or unified diff (diff mode)
-DIFFP - If non-nil (and not :json-false), use diff/patch mode
+Returns success message, or signals an error on failure."
+  (unless (file-readable-p path)
+    (error "Error: File %s is not readable" path))
+  (when (file-directory-p path)
+    (error "Error: Edit operates on single files, not directories (%s).\
+ Use \"Patch\" for multi-file changes." path))
+  (unless (and (stringp old-str) (stringp new-str))
+    (error "Error: Edit requires both old_str and new_str parameters"))
+  (with-temp-buffer
+    (insert-file-contents path)
+    (if (search-forward old-str nil t)
+        (if (save-excursion (search-forward old-str nil t))
+            (error "Error: Match is not unique. Provide more context for the\
+ replacement, or use the \"Patch\" tool with a unified diff")
+          (replace-match (string-replace "\\" "\\\\" new-str))
+          (write-region nil nil path)
+          (format "Successfully replaced %s with %s"
+                  (truncate-string-to-width old-str 20 nil nil t)
+                  (truncate-string-to-width new-str 20 nil nil t)))
+      (error "Error: Could not find old_str \"%s\" in file %s"
+             (truncate-string-to-width old-str 20) path))))
 
-Error Conditions:
-  - PATH not readable
-  - (String mode) PATH is a directory
-  - (String mode) OLD-STR not found in file
-  - (String mode) OLD-STR matches multiple times (ambiguous)
-  - (Diff mode) patch command fails (exit status non-zero)
+(defun gptel-agent--patch-file (path diff)
+  "Apply unified DIFF to the file or directory at PATH using the `patch` command.
 
-Returns:
-  Success message string describing what was changed
+PATH - File or directory path to patch
+DIFF - Unified diff string, optionally within fenced code blocks (=diff or =patch)
 
-Signals:
-  error - On any failure condition (caught and displayed by gptel)"
+Returns success message, or signals an error on failure."
   (unless (file-readable-p path)
     (error "Error: File or directory %s is not readable" path))
-
-  (unless new-str-or-diff
-    (error "Required argument `new_str' missing"))
-
-  (if (or (eq diffp :json-false) old-str)
-      ;; Replacement by Text
-      (progn
-        (when (file-directory-p path)
-          (error "Error: String replacement is intended for single files, not directories (%s)"
-                 path))
-        (with-temp-buffer
-          (insert-file-contents path)
-          (if (search-forward old-str nil t)
-              (if (save-excursion (search-forward old-str nil t))
-                  (error "Error: Match is not unique.\
-Consider providing more context for the replacement, or a unified diff")
-                ;; TODO: More robust backspace escaping
-                (replace-match (string-replace  "\\" "\\\\" new-str-or-diff))
-                (write-region nil nil path)
-                (format "Successfully replaced %s (truncated) with %s (truncated)"
-                        (truncate-string-to-width old-str 20 nil nil t)
-                        (truncate-string-to-width new-str-or-diff 20 nil nil t)))
-            (error "Error: Could not find old_str \"%s\" in file %s"
-                   (truncate-string-to-width old-str 20) path))))
-    ;; Replacement by Diff
-    (unless (executable-find "patch")
-      (error "Error: Command \"patch\" not available, cannot apply diffs.\
-Use string replacement instead"))
-    (let* ((out-buf-name (generate-new-buffer-name "*patch-stdout*"))
-           ;; (err-buf-name (generate-new-buffer-name "*patch-stderr*"))
-           (target-file (expand-file-name path))
-           (exit-status -1)             ; Initialize to a known non-zero value
-           (result-output "")
-           ;; (result-error "")
-           )
-      (unwind-protect
-          (let ((default-directory (file-name-directory (expand-file-name path)))
-                (patch-options    '("--forward" "--verbose")))
-
-            (with-temp-message
-                (format "Applying diff to: `%s` with options: %s"
-                        target-file patch-options)
-              (with-temp-buffer
-                (insert new-str-or-diff)
-                ;; Insert trailing newline, required by patch
-                (unless (eq (char-before (point-max)) ?\n)
+  (unless (stringp diff)
+    (error "Error: Patch requires a diff string parameter"))
+  (unless (executable-find "patch")
+    (error "Error: Command \"patch\" not available, cannot apply diffs.\
+ Use \"Edit\" for string replacement instead"))
+  (let* ((out-buf-name (generate-new-buffer-name "*patch-stdout*"))
+         (target-file (expand-file-name path))
+         (exit-status -1)
+         (result-output ""))
+    (unwind-protect
+        (let ((default-directory (file-name-directory (expand-file-name path)))
+              (patch-options    '("--forward" "--verbose")))
+          (with-temp-message
+              (format "Applying diff to: `%s` with options: %s"
+                      target-file patch-options)
+            (with-temp-buffer
+              (insert diff)
+              ;; Insert trailing newline, required by patch
+              (unless (eq (char-before (point-max)) ?\n)
+                (goto-char (point-max))
+                (insert "\n"))
+              (goto-char (point-min))
+              ;; Remove code fences, if present
+              (when (looking-at-p "^ *=diff\n")
+                (save-excursion
+                  (delete-line)
                   (goto-char (point-max))
-                  (insert "\n"))
-                (goto-char (point-min))
-                ;; Remove code fences, if present
-                (when (looking-at-p "^ *```diff\n")
-                  (save-excursion
-                    (delete-line)
-                    (goto-char (point-max))
-                    (forward-line -1)   ;guaranteed to be at a blank newline
-                    (when (looking-at-p "^ *```") (delete-line))))
-                ;; Fix line numbers in hunk headers
-                (gptel-agent--fix-patch-headers)
-
-                (setq exit-status
-                      (apply #'call-process-region (point-min) (point-max)
-                             "patch" nil (list out-buf-name t) ; stdout/stderr buffer names
-                             nil patch-options))))
-
-            ;; Retrieve content from buffers using their names
-            (when-let* ((stdout-buf (get-buffer out-buf-name)))
-              (when (buffer-live-p stdout-buf)
-                (with-current-buffer stdout-buf
-                  (setq result-output (buffer-string)))))
-
-            (if (= exit-status 0)
-                (format "Diff successfully applied to %s.
-Patch command options: %s
-Patch STDOUT:\n%s"
-                        target-file patch-options result-output)
-              ;; Signal an Elisp error, which gptel will catch and display.
-              ;; The arguments to 'error' become the error message.
-              (error "Error: Failed to apply diff to %s (exit status %s).
-Patch command options: %s
-Patch STDOUT:\n%s"
-                     target-file exit-status patch-options
-                     result-output)))
-        (let ((stdout-buf-obj (get-buffer out-buf-name))) ;Clean up
-          (when (buffer-live-p stdout-buf-obj) (kill-buffer stdout-buf-obj)))))))
+                  (forward-line -1)
+                  (when (looking-at-p "^ /=") (delete-line))))
+              ;; Fix line numbers in hunk headers
+              (gptel-agent--fix-patch-headers)
+              (setq exit-status
+                    (apply #'call-process-region (point-min) (point-max)
+                           "patch" nil (list out-buf-name t)
+                           nil patch-options))))
+          (when-let* ((stdout-buf (get-buffer out-buf-name)))
+            (when (buffer-live-p stdout-buf)
+              (with-current-buffer stdout-buf
+                (setq result-output (buffer-string)))))
+          (if (= exit-status 0)
+              (format "Diff successfully applied to %s.\
+\nPatch command options: %s\nPatch STDOUT:\n%s"
+                      target-file patch-options result-output)
+            (error "Error: Failed to apply diff to %s (exit status %s).\
+\nPatch command options: %s\nPatch STDOUT:\n%s"
+                   target-file exit-status patch-options
+                   result-output)))
+      (let ((stdout-buf-obj (get-buffer out-buf-name)))
+        (when (buffer-live-p stdout-buf-obj) (kill-buffer stdout-buf-obj))))))
 
 (defun gptel-agent--insert-in-file-preview-setup (arg-values _info)
   "Preview setup for Insert.
@@ -1012,7 +1002,7 @@ ARG-VALUES is a list: (path line-number new-str)"
 LINE-NUMBER conventions:
 - 0 inserts at the beginning of the file
 - -1 inserts at the end of the file
-- N > 1 inserts before line N"
+- N >= 1 inserts after line N"
   (unless (file-readable-p path)
     (error "Error: File %s is not readable" path))
 
@@ -1026,7 +1016,7 @@ LINE-NUMBER conventions:
       (0 (goto-char (point-min)))       ; Insert at the beginning
       (-1 (goto-char (point-max)))      ; Insert at the end
       (_ (goto-char (point-min))
-         (forward-line line-number)))   ; Insert before line N
+         (forward-line line-number)))   ; Insert after line N
 
     ;; Insert the new string
     (insert new-str)
@@ -1042,20 +1032,18 @@ LINE-NUMBER conventions:
 
 (defun gptel-agent--write-file-preview-setup (arg-values _info)
   "Setup preview overlay for Write file tool call.
-
 ARG-VALUES is the list of arguments for the tool call."
   (pcase-let ((from (point))
-              (`(,path ,filename ,content) arg-values))
+              (`(,file-path ,content) arg-values))
     (insert
      "(" (propertize "Write " 'font-lock-face 'font-lock-keyword-face)
-     (propertize (prin1-to-string path) 'font-lock-face 'font-lock-constant-face) " "
-     (propertize (prin1-to-string filename) 'font-lock-face 'font-lock-constant-face)
+     (propertize (prin1-to-string file-path) 'font-lock-face 'font-lock-constant-face)
      ")\n")
     (let ((inner-from (point)))
       (insert (or content
                   (propertize "<missing content>"
                               'font-lock-face 'font-lock-warning-face)))
-      (gptel-agent--fontify-block (or filename "") inner-from (point))
+      (gptel-agent--fontify-block (or file-path "") inner-from (point))
       (insert "\n\n")
       (font-lock-append-text-property
        inner-from (1- (point)) 'font-lock-face (gptel-agent--block-bg))
@@ -1064,26 +1052,24 @@ ARG-VALUES is the list of arguments for the tool call."
     (gptel-agent--confirm-overlay from (point))))
 
 ;;;; Write content to a file
-(defun gptel-agent--write-file (path filename content)
-  "Write CONTENT to FILENAME in PATH.
+(defun gptel-agent--write-file (file-path content)
+  "Write CONTENT to FILE-PATH, creating parent directories if needed.
 
-PATH and FILENAME are expanded to create the full path.  CONTENT is
-written to the file.  Returns a success message string, or signals an
-error if writing fails.
-
-PATH, FILENAME, and CONTENT must all be strings."
-  (unless (and (stringp path) (stringp filename) (stringp content))
-    (error "PATH, FILENAME or CONTENT is not a string, cancelling action"))
-  (let ((full-path (expand-file-name filename path)))
-    (condition-case errdata
+FILE-PATH is the full path to the file (directory + filename).
+CONTENT is the string content to write.
+Returns a success message, or signals an error on failure."
+  (unless (and (stringp file-path) (stringp content))
+    (error "FILE-PATH or CONTENT is not a string, cancelling action"))
+  (let ((dir (file-name-directory file-path)))
+    (unless (file-directory-p dir)
+      (make-directory dir t)))
+  (condition-case errdata
+      (progn
         (with-temp-buffer
           (insert content)
-          ;; Use write-region instead of write-file: write-file calls
-          ;; set-visited-file-name which triggers set-auto-mode and
-          ;; find-file-hook, causing LSP to activate for the file's mode.
-          (write-region (point-min) (point-max) full-path)
-          (format "Created file %s in %s" filename path))
-      (error "Error: Could not write file %s:\n%S" path errdata))))
+          (write-region (point-min) (point-max) file-path))
+        (format "Created file %s" file-path))
+    (error "Error: Could not write file %s:\n%S" file-path errdata)))
 
 ;;;; Find files using regexes
 (defun gptel-agent--glob (pattern &optional path depth)
@@ -2098,7 +2084,8 @@ Error details: %S"
                `(("Write"     ,#'gptel-agent--write-file-preview-setup)
                  ("Eval"     ,#'gptel-agent--eval-elisp-preview-setup)
                  ("Bash"   ,#'gptel-agent--execute-bash-preview-setup)
-                 ("Edit"     ,#'gptel-agent--edit-files-preview-setup)
+                 ("Edit"     ,#'gptel-agent--edit-file-preview-setup)
+                 ("Patch"    ,#'gptel-agent--patch-file-preview-setup)
                  ("Insert" ,#'gptel-agent--insert-in-file-preview-setup)
                  ("Agent"     ,#'gptel-agent--task-preview-setup)))
   (setf (alist-get tool-name gptel--tool-preview-alist
@@ -2289,44 +2276,46 @@ too."
 (gptel-make-tool
  :name "Edit"
  :description
- "Replace text in one or more files.
+ "Replace text in a single file by exact string matching.
 
-To edit a single file, provide the file =path=.
+Provide the file =path=, the exact =old_str= to find, and =new_str= as replacement.
+=old_str= must match exactly once in the file — include enough surrounding context
+to make the match unambiguous.
 
-For the replacement, there are two methods:
-- Short replacements: Provide both =old_str= and =new_str=, in which case =old_str= \
-needs to exactly match one unique section of the original file, including any whitespace.  \
-Make sure to include enough context that the match is not ambiguous.  \
-The entire original string will be replaced with =new str=.
-- Long or involved replacements: set the =diff= parameter to true and provide a unified diff \
-in =new_str=. =old_str= can be ignored.
-
-To edit multiple files,
-- provide the directory path,
-- set the =diff= parameter to true
-- and provide a unified diff in =new_str=.
-
-Diff instructions:
-
-- The diff must be provided within fenced code blocks (=diff or =patch) and be in unified format.
-- The LLM should generate the diff such that the file paths within the diff \
-  (e.g., '--- a/filename' '+++ b/filename') are appropriate for the 'path'.
-
-To simply insert text at some line, use the \"Insert\" instead."
- :function #'gptel-agent--edit-files
+For multi-file changes or complex replacements, use the \"Patch\" tool instead.
+For inserting new text without removing anything, use the \"Insert\" tool."
+ :function #'gptel-agent--edit-file
  :args '(( :name "path"
-           :description "File path or directory to edit"
+           :description "File path to edit"
            :type string)
          ( :name "old_str"
-           :description "Original string to replace.  If providing a unified diff, this should be false"
-           :type string
-           :optional t)
+           :description "Exact text to find and replace (must be unique in the file)"
+           :type string)
          ( :name "new_str"
-           :description "Replacement string OR unified diff text"
+           :description "Replacement text"
+           :type string))
+ :category "gptel-agent"
+ :confirm t
+ :include t)
+
+(gptel-make-tool
+ :name "Patch"
+ :description
+ "Apply a unified diff to a file or directory using the `patch` command.
+
+Provide the file or directory =path= and the unified =diff= text.
+The diff can be within fenced code blocks (=diff or =patch).
+File paths within the diff should be appropriate for the given =path=.
+
+For simple single-file string replacements, use the \"Edit\" tool instead.
+For inserting new text, use the \"Insert\" tool."
+ :function #'gptel-agent--patch-file
+ :args '(( :name "path"
+           :description "File path or directory to patch"
            :type string)
          ( :name "diff"
-           :description "Whether the replacement is a string or a diff.  =true= for a diff, =false= otherwise."
-           :type boolean))
+           :description "Unified diff text, optionally within =diff/=patch fences"
+           :type string))
  :category "gptel-agent"
  :confirm t
  :include t)
@@ -2359,15 +2348,12 @@ specific location with no changes to the surrounding context."
 Overwrites an existing file, so use with care!
 Consider using the more granular tools \"Insert\" or \"Edit\" first."
  :function #'gptel-agent--write-file
- :args (list '( :name "path"
-                :type "string"
-                :description "The directory where to create the file, \".\" is the current directory.")
-             '( :name "filename"
-                :type "string"
-                :description "The name of the file to create.")
-             '( :name "content"
-                :type "string"
-                :description "The content to write to the file"))
+ :args '(( :name "file_path"
+           :description "Full path to the file to create"
+           :type string)
+         ( :name "content"
+           :description "The content to write to the file"
+           :type string))
  :category "gptel-agent"
  :confirm t)
 

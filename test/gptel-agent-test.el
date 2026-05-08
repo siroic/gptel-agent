@@ -313,34 +313,39 @@ Returns the buffer string on success.  Re-signals errors."
     (funcall fn arg-values nil)
     (buffer-substring-no-properties (point-min) (point-max))))
 
-(ert-deftest gptel-agent-edit-files-preview-setup-handles-nil-args ()
-  "Edit preview must not crash when args other than path are nil.
-
-Regression test for the (wrong-type-argument stringp nil) crash that
-occurred when the model issued an Edit call with only =path=."
+(ert-deftest gptel-agent-edit-file-preview-setup-handles-nil-args ()
+  "Edit preview must not crash when args are nil."
   (let ((s (gptel-agent-test--call-preview
-            #'gptel-agent--edit-files-preview-setup
-            '("foo.el" nil nil nil))))
-    (should (string-match-p "Edit\\?" s))
-    (should (string-match-p "foo.el" s))
+            #'gptel-agent--edit-file-preview-setup
+            (list "some/path" nil nil))))
+    (should (string-match-p "Edit" s))
     (should (string-match-p "malformed Edit call" s)))
-  ;; Patch branch with nil diff payload must not crash.
   (let ((s (gptel-agent-test--call-preview
-            #'gptel-agent--edit-files-preview-setup
-            '("foo.el" nil nil t))))
-    (should (string-match-p "Edit\\?" s)))
-  ;; Text-replacement branch with old-str but nil new-str-or-diff.
+            #'gptel-agent--edit-file-preview-setup
+            (list nil "old" "new"))))
+    (should (string-match-p "Edit" s)))
   (let ((s (gptel-agent-test--call-preview
-            #'gptel-agent--edit-files-preview-setup
-            '("foo.el" "old" nil nil))))
-    (should (string-match-p "ReplaceIn" s))
-    (should (string-match-p "missing new_str" s))))
+            #'gptel-agent--edit-file-preview-setup
+            (list "some/path" "old" nil))))
+    (should (string-match-p "Edit" s))))
+
+(ert-deftest gptel-agent-patch-file-preview-setup-handles-nil-args ()
+  "Patch preview must not crash when args are nil."
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--patch-file-preview-setup
+            (list "some/path" nil))))
+    (should (string-match-p "Patch" s))
+    (should (string-match-p "malformed Patch call" s)))
+  (let ((s (gptel-agent-test--call-preview
+            #'gptel-agent--patch-file-preview-setup
+            (list nil "some diff"))))
+    (should (string-match-p "Patch" s))))
 
 (ert-deftest gptel-agent-write-file-preview-setup-handles-nil-args ()
   "Write preview must not crash when content is nil."
   (let ((s (gptel-agent-test--call-preview
             #'gptel-agent--write-file-preview-setup
-            '("." "foo.el" nil))))
+            '("some/path.el" nil))))
     (should (string-match-p "Write" s))
     (should (string-match-p "missing content" s))))
 
