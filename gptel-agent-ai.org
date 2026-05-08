@@ -921,6 +921,138 @@ After applying fixes:
 - Consider a future follow-up only if prompt guidance proves insufficient in practice.
 - Check if local models can parse tool results and generate correct tool calls
 - If tool calling is unreliable, the coordinator approach needs rethinking
+
+*** AI-DO Improve Insert, Edit, Write tool definitions for LLM reliability
+**** Origin
+- User report: "At least deepseek have challenges to make correct tool
+  request — Sometimes missing path, diff, etc."
+- Implementer agent now uses DeepSeek v4 Pro (commit =88deb33=).
+  DeepSeek models appear more prone to parameter confusion with these
+  three file-modification tools.
+- Same issue noted in =*** TODO Test gptel-triage with local models=
+  (line 888): "If tool calling is unreliable, the coordinator approach
+  needs rethinking."
+
+**** Research findings
+
+*Bug: Insert function docstring contradicts tool description*
+
+Tool description (line 2336): =Insert =new_str= after =line_number= in
+file at =path= — correct behavior: insert AFTER line N.
+
+Function docstring (line 1015): =N > 1 inserts before line N= — WRONG
+on two counts:
+- Wrong direction: says "before" instead of "after"
+- Wrong range: =N > 1= excludes =N = 1=, but code accepts any positive N
+
+Actual code behavior (line 1025-1029):
+#+begin_src elisp
+(pcase line-number
+  (0 (goto-char (point-min)))       ; insert at beginning
+  (-1 (goto-char (point-max)))      ; append to end
+  (_ (goto-char (point-min))
+     (forward-line line-number)))   ; insert AFTER line N
+#+end_src
+
+=forward-line N= from point-min lands at beginning of line N+1,
+so insertion is AFTER line N. The tool description is correct;
+the function docstring is wrong.
+
+*Design issue: Write tool =path= + =filename= split is LLM-unfriendly*
+
+Current signature (line 2357-2370):
+- =path= — "The directory where to create the file"
+- =filename= — "The name of the file to create"
+
+Problems:
+- LLMs naturally think of "file path" as a single entity
+- Models frequently put the full path in one parameter, leaving the
+  other empty or duplicating
+- =expand-file-name= already handles absolute =filename= gracefully
+  (ignores =path=), but this isn't documented and LLMs can't rely on it
+- The =:confirm t= flag requires user approval, but a garbled path
+  from parameter confusion may not be obvious in preview
+
+*Design issue: Edit tool dual-mode parameter ambiguity*
+
+Current signature (line 2289-2332):
+- =path= (required) — file or directory
+- =old_str= (optional) — text to find and replace
+- =new_str= (required) — replacement text or unified diff
+- =diff= (optional boolean) — =true= for diff mode, =false= otherwise
+
+The mode-dispatch logic (line 857):
+#+begin_src elisp
+(if (or (eq diffp :json-false) old-str)
+    ;; String replacement mode
+  ;; Diff mode
+#+end_src
+
+Problems:
+- When LLM provides =path= + =new_str= but omits BOTH =old_str= AND
+  =diff=, code falls into diff mode and tries to apply =new_str= as a
+  patch → confusing error from =patch= command
+- =old_str= is =:optional t= but =new_str= is not, yet in diff mode
+  =old_str= should be ignored — this asymmetry is confusing
+- Boolean =diff= parameter with =:json-false= semantics adds complexity
+  — LLMs may set =diff: false= meaning "I want string mode" but then
+  omit =old_str= (thinking it's a write-like operation)
+- The description is long (25 lines) and describes two modes — simpler
+  models may not parse it correctly
+- DeepSeek specifically observed to omit =path= or =diff= parameters
+
+*Design issue: No =required= field in arg specs*
+
+The arg spec format supports =:optional t= but has no =:required=
+counterpart. Making required-ness explicit in the spec (rather than
+inferred from absence of =:optional=) could help LLMs understand
+which parameters must always be present.
+
+**** Decisions
+- Option A (minimal): Fix Insert docstring only.  Quick win, zero risk.
+- Option B (moderate): Fix docstring + rewrite tool descriptions to be
+  more LLM-friendly (shorter, clearer, with examples of common mistakes).
+  Also add =:required t= to arg specs for clarity.
+- Option C (structural): Option B + redesign Write tool to accept a
+  single =file-path= parameter (with backward compat shim).  Also
+  redesign Edit tool to use explicit =mode= enum (= "string" | "diff"=)
+  instead of boolean =diff= flag.
+- Option D (radical): Option C + split Edit into two separate tools
+  (=Edit= for string replacement, =Patch= for diff application).  This
+  eliminates mode ambiguity entirely but increases tool count.
+
+*Leaning: Option C* — single =file-path= for Write is the most impactful
+fix for DeepSeek.  Explicit =mode= for Edit reduces ambiguity without
+adding tool count.  Both are backward-compatible via shims.
+
+**** Mission
+- [ ] Fix =gptel-agent--insert-in-file= docstring: =N >= 1 inserts after line N=
+- [ ] Redesign Write tool: accept single =file-path= parameter
+  - Backward compat: if =filename= is provided and =file-path= is not,
+    use old behavior; if =file-path= is a full path, extract directory
+    and filename automatically
+  - Update tool description and preview setup
+- [ ] Redesign Edit tool: replace boolean =diff= with explicit =mode=
+  parameter (= "string" | "diff"=)
+  - =mode: "string"= → requires =old_str= and =new_str=
+  - =mode: "diff"= → requires =new_str= (the diff), ignores =old_str=
+  - Backward compat shim: if =diff= boolean is provided, translate to =mode=
+  - Add clear error messages that guide the model: "Edit tool in string
+    mode requires old_str and new_str parameters"
+- [ ] Add =:required t= to non-optional args in all three tool specs
+- [ ] Update =gptel-agent-tools-remote.el= RemoteWrite/RemoteEdit
+  variants for consistency if Write/Edit signatures change
+- [ ] Update preview setup functions for any signature changes
+- [ ] Run tests: =cd quelpa/build/gptel-agent/test && make test 2>&1 | tail -30=
+- [ ] Consider adding a =:examples= field to =gptel-make-tool= to include
+  usage examples in the tool description for models
+
+**** Follow-ups
+- Monitor whether DeepSeek v4 Pro implementer still produces malformed
+  tool calls after these changes
+- If tool-calling remains unreliable with DeepSeek, escalate to
+  coordinator prompt overrides or per-model tool description variants
+- Consider similar audit of =Bash=, =Glob=, =Grep= tool descriptions
 *** TODO De-duplicate bash-safety test fixtures
 After the test layout consolidation (=test/Makefile=, commit =6a9ac08=),
 =test/test-bash-safety.el= still carries a copy of the bash safety
