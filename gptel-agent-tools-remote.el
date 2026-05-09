@@ -223,22 +223,22 @@ SUDO if non-nil, edit as root.  OLD-STR must match exactly once."
 
 ;;; RemoteGlob — Find files on remote host
 
-(defun gptel-agent--remote-glob (host user pattern &optional path sudo depth)
+(defun gptel-agent--remote-glob (host user pattern &optional file-path sudo depth)
   "Find files matching PATTERN on remote HOST as USER.
 
-PATH is the remote directory to search (defaults to home).
+FILE-PATH is the remote directory to search (defaults to home).
 SUDO if non-nil, search as root.
 DEPTH limits recursion depth."
   (let ((default-directory
-         (gptel-agent--remote-path host user sudo (or path "/"))))
+         (gptel-agent--remote-path host user sudo (or file-path "/"))))
     (when (string-empty-p pattern)
       (error "Error: pattern must not be empty"))
     (unless (file-directory-p default-directory)
-      (error "Error: path %s on %s is not a directory" (or path "/") host))
+      (error "Error: path %s on %s is not a directory" (or file-path "/") host))
     ;; Use process-file with find since tree may not be on remote
     (with-temp-buffer
       (let* ((search-path (file-local-name
-                           (gptel-agent--remote-path host user sudo (or path "/"))))
+                           (gptel-agent--remote-path host user sudo (or file-path "/"))))
              (args (delq nil
                          (list search-path
                                (when (natnump depth)
@@ -263,20 +263,20 @@ DEPTH limits recursion depth."
 
 ;;; RemoteGrep — Search file contents on remote host
 
-(defun gptel-agent--remote-grep (host user regex path &optional sudo glob context-lines)
-  "Search for REGEX in PATH on remote HOST as USER.
+(defun gptel-agent--remote-grep (host user regex file-path &optional sudo glob context-lines)
+  "Search for REGEX in FILE-PATH on remote HOST as USER.
 
 SUDO if non-nil, search as root.
 GLOB restricts file types.
 CONTEXT-LINES specifies surrounding lines to show."
   (let ((default-directory
          (gptel-agent--remote-default-directory host user sudo)))
-    (unless (file-readable-p (gptel-agent--remote-path host user sudo path))
-      (error "Error: %s on %s is not readable" path host))
+    (unless (file-readable-p (gptel-agent--remote-path host user sudo file-path))
+      (error "Error: %s on %s is not readable" file-path host))
     ;; Use grep since ripgrep may not be on remote
     (with-temp-buffer
       (let* ((remote-path (file-local-name
-                           (gptel-agent--remote-path host user sudo path)))
+                           (gptel-agent--remote-path host user sudo file-path)))
              (args (delq nil
                          (list "--recursive"
                                (when (natnump context-lines)
@@ -514,7 +514,7 @@ Results are sorted by modification time (newest first)."
          (:name "pattern"
           :type string
           :description "Filename pattern (glob), e.g. '*.conf' or '*.log'")
-         (:name "path"
+         (:name "file_path"
           :type string
           :description "Remote directory to search in, e.g. '/etc/nginx/'"
           :optional t)
@@ -545,7 +545,7 @@ since the remote host may not have ripgrep installed."
          (:name "regex"
           :type string
           :description "Regular expression to search for")
-         (:name "path"
+         (:name "file_path"
           :type string
           :description "File or directory path on the remote host")
          (:name "sudo"

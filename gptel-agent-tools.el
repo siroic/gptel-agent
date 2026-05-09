@@ -731,12 +731,12 @@ diagnostics."
 ;;;; Writing to files
 (defun gptel-agent--edit-file-preview-setup (arg-values _info)
   "Insert tool call preview for ARG-VALUES for \"Edit\" tool.
-ARG-VALUES is a list: (path old-str new-str)"
+ARG-VALUES is a list: (file-path old-str new-str)"
   (pcase-let ((from (point))
-              (`(,path ,old-str ,new-str) arg-values))
+              (`(,file-path ,old-str ,new-str) arg-values))
     (insert
      "(" (propertize "Edit " 'font-lock-face 'font-lock-keyword-face)
-     (propertize (concat "\"" (or path "<no path>") "\"")
+     (propertize (concat "\"" (or file-path "<no path>") "\"")
                  'font-lock-face 'font-lock-constant-face)
      ")\n")
     (if (stringp old-str)
@@ -760,9 +760,9 @@ ARG-VALUES is a list: (path old-str new-str)"
 
 (defun gptel-agent--patch-file-preview-setup (arg-values _info)
   "Insert tool call preview for ARG-VALUES for \"Patch\" tool.
-ARG-VALUES is a list: (path diff)"
+ARG-VALUES is a list: (file-path diff)"
   (pcase-let ((from (point)) (files-affected)
-              (`(,path ,diff) arg-values))
+              (`(,file-path ,diff) arg-values))
     (cond
      ((stringp diff)
       (insert diff)
@@ -788,12 +788,12 @@ ARG-VALUES is a list: (path diff)"
          "(" (propertize "Patch" 'font-lock-face 'font-lock-keyword-face)
          " " (mapconcat (lambda (f) (propertize (concat "\"" f "\"")
                                            'font-lock-face 'font-lock-constant-face))
-                        (or files-affected (list (or path "<no path>"))) " ")
+                        (or files-affected (list (or file-path "<no path>"))) " ")
          ")\n")))
      (t
       (insert
        "(" (propertize "Patch " 'font-lock-face 'font-lock-keyword-face)
-       (propertize (concat "\"" (or path "<no path>") "\"")
+       (propertize (concat "\"" (or file-path "<no path>") "\"")
                    'font-lock-face 'font-lock-constant-face)
        ")\n"
        (propertize "<malformed Patch call: missing diff>"
@@ -855,8 +855,8 @@ directory to create."
         (format "Directory %s created/verified in %s" name parent))
     (error "Error creating directory %s in %s:\n%S" name parent errdata)))
 
-(defun gptel-agent--edit-file (path old-str new-str)
-  "Replace OLD-STR with NEW-STR in the file at PATH.
+(defun gptel-agent--edit-file (file-path old-str new-str)
+  "Replace OLD-STR with NEW-STR in the file at FILE-PATH.
 
 OLD-STR must match exactly once (uniquely) in the file.  Include
 enough context around the change to make the match unambiguous.
@@ -864,55 +864,55 @@ enough context around the change to make the match unambiguous.
 For changes spanning multiple files or requiring diff/patch
 application, use the \"Patch\" tool instead.
 
-PATH - File path to modify (must be readable, not a directory)
+FILE-PATH - File path to modify (must be readable, not a directory)
 OLD-STR - Exact text to find and replace
 NEW-STR - Replacement text
 
 Returns success message, or signals an error on failure."
-  (unless (and (stringp path) (stringp old-str) (stringp new-str))
+  (unless (and (stringp file-path) (stringp old-str) (stringp new-str))
     (error "Error: Edit requires path, old_str, and new_str string parameters (got: %S %S %S)"
-           path old-str new-str))
-  (unless (file-readable-p path)
-    (error "Error: File %s is not readable" path))
-  (when (file-directory-p path)
+           file-path old-str new-str))
+  (unless (file-readable-p file-path)
+    (error "Error: File %s is not readable" file-path))
+  (when (file-directory-p file-path)
     (error "Error: Edit operates on single files, not directories (%s).\
- Use \"Patch\" for multi-file changes." path))
+ Use \"Patch\" for multi-file changes." file-path))
   (unless (and (stringp old-str) (stringp new-str))
     (error "Error: Edit requires both old_str and new_str parameters"))
   (with-temp-buffer
-    (insert-file-contents path)
+    (insert-file-contents file-path)
     (if (search-forward old-str nil t)
         (if (save-excursion (search-forward old-str nil t))
             (error "Error: Match is not unique. Provide more context for the\
  replacement, or use the \"Patch\" tool with a unified diff")
           (replace-match (string-replace "\\" "\\\\" new-str))
-          (write-region nil nil path)
+          (write-region nil nil file-path)
           (format "Successfully replaced %s with %s"
                   (truncate-string-to-width old-str 20 nil nil t)
                   (truncate-string-to-width new-str 20 nil nil t)))
       (error "Error: Could not find old_str \"%s\" in file %s"
-             (truncate-string-to-width old-str 20) path))))
+             (truncate-string-to-width old-str 20) file-path))))
 
-(defun gptel-agent--patch-file (path diff)
-  "Apply unified DIFF to the file or directory at PATH using the `patch` command.
+(defun gptel-agent--patch-file (file-path diff)
+  "Apply unified DIFF to the file or directory at FILE-PATH using the `patch` command.
 
-PATH - File or directory path to patch
+FILE-PATH - File or directory path to patch
 DIFF - Unified diff string, optionally within fenced code blocks (=diff or =patch)
 
 Returns success message, or signals an error on failure."
-  (unless (file-readable-p path)
-    (error "Error: File or directory %s is not readable" path))
+  (unless (file-readable-p file-path)
+    (error "Error: File or directory %s is not readable" file-path))
   (unless (stringp diff)
     (error "Error: Patch requires a diff string parameter"))
   (unless (executable-find "patch")
     (error "Error: Command \"patch\" not available, cannot apply diffs.\
  Use \"Edit\" for string replacement instead"))
   (let* ((out-buf-name (generate-new-buffer-name "*patch-stdout*"))
-         (target-file (expand-file-name path))
+         (target-file (expand-file-name file-path))
          (exit-status -1)
          (result-output ""))
     (unwind-protect
-        (let ((default-directory (file-name-directory (expand-file-name path)))
+        (let ((default-directory (file-name-directory (expand-file-name file-path)))
               (patch-options    '("--forward" "--verbose")))
           (with-temp-message
               (format "Applying diff to: `%s` with options: %s"
@@ -955,21 +955,21 @@ Returns success message, or signals an error on failure."
 (defun gptel-agent--insert-in-file-preview-setup (arg-values _info)
   "Preview setup for Insert.
 INFO is the tool call info plist.
-ARG-VALUES is a list: (path line-number new-str)"
+ARG-VALUES is a list: (file-path line-number new-str)"
   (let ((from (point)) (line-offset)
         (face-bg (gptel-agent--block-bg))
         (cb (current-buffer)))
-    (pcase-let ((`(,path ,line-number ,new-str) arg-values))
+    (pcase-let ((`(,file-path ,line-number ,new-str) arg-values))
       (insert "("
               (propertize "insert_into_file " 'font-lock-face 'font-lock-keyword-face)
-              (propertize (concat "\"" (or path "<no path>") "\"")
+              (propertize (concat "\"" (or file-path "<no path>") "\"")
                           'font-lock-face 'font-lock-constant-face)
               ")\n")
-      (if (and (stringp path) (stringp new-str) (integerp line-number)
-               (file-readable-p path))
+      (if (and (stringp file-path) (stringp new-str) (integerp line-number)
+               (file-readable-p file-path))
           (insert
            (with-temp-buffer       ;NEW-STR with context lines, styled as a diff
-             (insert-file-contents path)
+             (insert-file-contents file-path)
              (pcase line-number
                (-1 (goto-char (point-max)))
                (_ (forward-line line-number)))
@@ -999,21 +999,21 @@ ARG-VALUES is a list: (path line-number new-str)"
         (insert (propertize "[File not readable]\n\n" 'font-lock-face 'error)))
       (gptel-agent--confirm-overlay from (point)))))
 
-(defun gptel-agent--insert-in-file (path line-number new-str)
-  "Insert NEW-STR at LINE-NUMBER in file at PATH.
+(defun gptel-agent--insert-in-file (file-path line-number new-str)
+  "Insert NEW-STR at LINE-NUMBER in file at FILE-PATH.
 
 LINE-NUMBER conventions:
 - 0 inserts at the beginning of the file
 - -1 inserts at the end of the file
 - N >= 1 inserts after line N"
-  (unless (file-readable-p path)
-    (error "Error: File %s is not readable" path))
+  (unless (file-readable-p file-path)
+    (error "Error: File %s is not readable" file-path))
 
-  (when (file-directory-p path)
-    (error "Error: Cannot insert into directory %s" path))
+  (when (file-directory-p file-path)
+    (error "Error: Cannot insert into directory %s" file-path))
 
   (with-temp-buffer
-    (insert-file-contents path)
+    (insert-file-contents file-path)
 
     (pcase line-number
       (0 (goto-char (point-min)))       ; Insert at the beginning
@@ -1029,9 +1029,9 @@ LINE-NUMBER conventions:
       (insert "\n"))
 
     ;; Write the modified content back to the file
-    (write-region nil nil path)
+    (write-region nil nil file-path)
 
-    (format "Successfully inserted text at line %d in %s" line-number path)))
+    (format "Successfully inserted text at line %d in %s" line-number file-path)))
 
 (defun gptel-agent--write-file-preview-setup (arg-values _info)
   "Setup preview overlay for Write file tool call.
@@ -1075,11 +1075,11 @@ Returns a success message, or signals an error on failure."
     (error "Error: Could not write file %s:\n%S" file-path errdata)))
 
 ;;;; Find files using regexes
-(defun gptel-agent--glob (pattern &optional path depth)
+(defun gptel-agent--glob (pattern &optional file-path depth)
   "Find files matching PATTERN using the `tree' command.
 
 PATTERN is a case-insensitive regex pattern to match filenames against.
-PATH is the optional directory to search (defaults to current directory).
+FILE-PATH is the optional directory to search (defaults to current directory).
 DEPTH limits recursion depth when provided (non-negative integer).
 
 Returns a string listing matching files with full paths, sorted by
@@ -1091,13 +1091,13 @@ Raises an error if PATTERN is empty, PATH is not readable, or the
 `tree' executable is not found."
   (when (string-empty-p pattern)
     (error "Error: pattern must not be empty"))
-  (if path
-      (unless (and (file-readable-p path) (file-directory-p path))
-        (error "Error: path %s is not readable" path))
-    (setq path "."))
+  (if file-path
+      (unless (and (file-readable-p file-path) (file-directory-p file-path))
+        (error "Error: path %s is not readable" file-path))
+    (setq file-path "."))
   (unless (executable-find "tree")
     (error "Error: Executable =tree= not found.  This tool cannot be used"))
-  (let ((full-path (expand-file-name path)))
+  (let ((full-path (expand-file-name file-path)))
     (with-temp-buffer
       (let* ((args (list "-l" "-f" "-i" "-I" ".git"
                          "--sort=mtime" "--ignore-case"
@@ -1196,11 +1196,11 @@ Please specify a line range to read")
 
         (buffer-string)))))
 
-(defun gptel-agent--grep (regex path &optional glob context-lines)
-  "Search for REGEX in file or directory at PATH using ripgrep.
+(defun gptel-agent--grep (regex file-path &optional glob context-lines)
+  "Search for REGEX in file or directory at FILE-PATH using ripgrep.
 
 REGEX is a PCRE-format regular expression to search for.
-PATH can be a file or directory to search in.
+FILE-PATH can be a file or directory to search in.
 
 Optional arguments:
 GLOB restricts the search to files matching the glob pattern.
@@ -1211,8 +1211,8 @@ CONTEXT-LINES specifies the number of lines of context to show
 Returns a string containing matches grouped by file, with line numbers
 and optional context.  Results are limited to 1000 or fewer matches per
 file.  Results are sorted by modification time."
-  (unless (file-readable-p path)
-    (error "Error: File or directory %s is not readable" path))
+  (unless (file-readable-p file-path)
+    (error "Error: File or directory %s is not readable" file-path))
   (let ((grepper (or (executable-find "rg") (executable-find "grep"))))
     (unless grepper
       (error "Error: ripgrep/grep not available, this tool cannot be used"))
@@ -1228,7 +1228,7 @@ file.  Results are sorted by modification time."
                                 ;; "--files-with-matches"
                                 "--max-count=1000"
                                 "--heading" "--line-number" "-e" regex
-                                (expand-file-name (substitute-in-file-name path)))))
+                                (expand-file-name (substitute-in-file-name file-path)))))
                ((string= "grep" cmd)
                 (delq nil (list "--recursive"
                                 (and (natnump context-lines)
@@ -1236,7 +1236,7 @@ file.  Results are sorted by modification time."
                                 (and glob (format "--include=%s" glob))
                                 "--max-count=1000"
                                 "--line-number" "--regexp" regex
-                                (expand-file-name (substitute-in-file-name path)))))
+                                (expand-file-name (substitute-in-file-name file-path)))))
                (t (error "Error: failed to identify grepper"))))
              (exit-code (apply #'call-process grepper nil '(t t) nil args)))
         (when (/= exit-code 0)
@@ -2281,14 +2281,14 @@ too."
  :description
  "Replace text in a single file by exact string matching.
 
-Provide the file =path=, the exact =old_str= to find, and =new_str= as replacement.
+Provide the file =file_path=, the exact =old_str= to find, and =new_str= as replacement.
 =old_str= must match exactly once in the file — include enough surrounding context
 to make the match unambiguous.
 
 For multi-file changes or complex replacements, use the \"Patch\" tool instead.
 For inserting new text without removing anything, use the \"Insert\" tool."
  :function #'gptel-agent--edit-file
- :args '(( :name "path"
+ :args '(( :name "file_path"
            :description "File path to edit"
            :type string)
          ( :name "old_str"
@@ -2306,14 +2306,14 @@ For inserting new text without removing anything, use the \"Insert\" tool."
  :description
  "Apply a unified diff to a file or directory using the `patch` command.
 
-Provide the file or directory =path= and the unified =diff= text.
+Provide the file or directory =file_path= and the unified =diff= text.
 The diff can be within fenced code blocks (=diff or =patch).
-File paths within the diff should be appropriate for the given =path=.
+File paths within the diff should be appropriate for the given =file_path=.
 
 For simple single-file string replacements, use the \"Edit\" tool instead.
 For inserting new text, use the \"Insert\" tool."
  :function #'gptel-agent--patch-file
- :args '(( :name "path"
+ :args '(( :name "file_path"
            :description "File path or directory to patch"
            :type string)
          ( :name "diff"
@@ -2325,12 +2325,12 @@ For inserting new text, use the \"Insert\" tool."
 
 (gptel-make-tool
  :name "Insert"
- :description "Insert =new_str= after =line_number= in file at =path=.
+ :description "Insert =new_str= after =line_number= in file at =file_path=.
 
 Use this tool for purely additive actions: adding text to a file at a \
 specific location with no changes to the surrounding context."
  :function #'gptel-agent--insert-in-file
- :args '(( :name "path"
+ :args '(( :name "file_path"
            :description "Path of file to edit."
            :type string)
          ( :name "line_number"
@@ -2378,7 +2378,7 @@ Consider using the more granular tools \"Insert\" or \"Edit\" first."
            :type string
            :description "Glob pattern to match, for example \"*.el\". Must not be empty.
 Use \"*\" to list all files in a directory.")
-         ( :name "path"
+         ( :name "file_path"
            :type string
            :description "Directory to search in.  Supports relative paths and defaults to \".\""
            :optional t)
@@ -2416,7 +2416,7 @@ Files over 512 KB in size can only be read by specifying a line range."
 
 (gptel-make-tool
  :name "Grep"
- :description "Search for text in file(s) at =path=.
+ :description "Search for text in file(s) at =file_path=.
 
 Use this tool to find relevant parts of files to read.
 
@@ -2427,12 +2427,12 @@ When searching directories, optionally restrict the types of files in the search
  :args '(( :name "regex"
            :description "Regular expression to search for in file contents."
            :type string)
-         ( :name "path"
+         ( :name "file_path"
            :description "File or directory to search in."
            :type string)
          ( :name "glob"
            :description "Optional glob to restrict file types to search for.
-Only required when path is a directory.
+Only required when file_path is a directory.
 Examples: *.md, *.rs"
            :type string
            :optional t)
