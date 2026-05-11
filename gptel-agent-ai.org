@@ -1202,3 +1202,22 @@ from the proper defining module instead of stubbing.
 - Updated =gptel-agent-ai.org=: agent definition table + state triads table
 - All 42 tests pass
 - Commit: 610323f
+
+*** AI-DONE Add implementer-complex delegation instructions to all agent presets
+**** Origin
+User reported that =gptel-coordinator= and =gptel-agent= (and other presets) were missing instructions about when to delegate to =implementer-complex=.
+**** Discussion highlights
+All 6 agent presets (=gptel-coordinator=, =gptel-agent=, =gptel-smart=, =gptel-deepseek=, =gptel-dummy=, =gptel-triage=) registered =implementer-complex= in their =:subagent-models= property but none had body text explaining when to use it vs plain =implementer=. This meant agents would never delegate to =implementer-complex= since they had no guidance.
+**** Mission
+Add =implementer-complex= delegation guidance to all agent presets.
+**** Outcomes / Results
+- Added =DELEGATE to =implementer-complex== section (when to use + how to delegate well) to the 5 structurally-similar presets (coordinator, agent, smart, deepseek, dummy)
+- Added key signal: "Complex multi-step implementation spanning many files → =implementer-complex="
+- Added pattern-matching entries for complex/architecturally-significant tasks
+- Added to MANDATORY delegation scenarios
+- Updated Agent tiers (Expensive/Opus) to include =implementer-complex=
+- Added key principle: =implementer= vs =implementer-complex= distinction
+- Updated coordinator role description to acknowledge =implementer-complex= as top-tier agent
+- Added =implementer-complex= to triage DIRECT DELEGATE list
+- All 43 tests pass
+- 6 atomic commits (one per file)
