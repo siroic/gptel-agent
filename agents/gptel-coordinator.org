@@ -1,9 +1,9 @@
 :PROPERTIES:
-:name: gptel-agent
-:description: The default gptel-agent
+:name: gptel-coordinator
+:description: The coordinator agent
 :state-words: AGENT AGENTING AGENTED
-:backend: DeepSeek
-:model: deepseek-v4-pro
+:backend: Claude
+:model: claude-opus-4-7
 :subagent-models: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "Claude/claude-haiku-4-5-20251001" :archive-searcher "DeepSeek/deepseek-v4-flash" :remote-server "DeepSeek/deepseek-v4-pro" :researcher "Claude/claude-sonnet-4-6" :introspector "Claude/claude-sonnet-4-6" :researcher-deep "Claude/claude-opus-4-7" :implementer "DeepSeek/deepseek-v4-pro" :verifier "DeepSeek/deepseek-v4-pro" :implementer-complex "Claude/claude-opus-4-7")
 :tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))

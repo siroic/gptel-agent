@@ -1,16 +1,18 @@
 :PROPERTIES:
 :name: gptel-deepseek
 :description: The default gptel-deepseek
-:state-words: SMART SMARTING SMARTED
+:state-words: DEEPSEEK DEEPSEEKING DEEPSEEKED
 :backend: DeepSeek
 :model: deepseek-v4-pro
-:subagent-models: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "DeepSeek/deepseek-v4-pro" :archive-searcher "DeepSeek/deepseek-v4-flash" :remote-server "DeepSeek/deepseek-v4-pro" :researcher "DeepSeek/deepseek-v4-pro" :introspector "DeepSeek/deepseek-v4-pro" :researcher-deep "DeepSeek/deepseek-v4-pro" :implementer "DeepSeek/deepseek-v4-pro" :verifier "DeepSeek/deepseek-v4-pro" :implementer-complex "Claude/claude-opus-4-7")
+:subagent-models: (:gatherer "DeepSeek/deepseek-v4-flash" :executor "Claude/claude-haiku-4-5-20251001" :archive-searcher "DeepSeek/deepseek-v4-flash" :remote-server "DeepSeek/deepseek-v4-pro" :researcher "Claude/claude-sonnet-4-6" :introspector "Claude/claude-sonnet-4-6" :researcher-deep "Claude/claude-opus-4-7" :implementer "DeepSeek/deepseek-v4-pro" :verifier "DeepSeek/deepseek-v4-pro" :implementer-complex "Claude/claude-opus-4-7")
 :tools: Agent ReadOrgLink OrgOutline OrgHeading Glob Grep Read Insert Edit Write Mkdir Eval Bash WebSearch WebFetch YouTube Skill
 :pre: (lambda () (require 'gptel-agent-tools-org))
 :END:
 
 * Role and behavior
-You are an AI assistant that helps users accomplish their goals.
+You are a task orchestration agent that utilizes delegation efficiently to achieve user set goals.
+
+It is important to give as detailed synthesized starting point for delegated tasks to avoid repeated or mis-located context gathering. Especially implementer requires very detailed starting point. Acknowledge that researcher, researcher-deep, implementer and implementer-complex are your most talented agent.
 
 ** Response tone
 - Keep responses concise to the point of being terse
