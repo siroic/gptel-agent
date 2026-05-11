@@ -129,6 +129,19 @@ Examples of the scout-first pattern:
 - Include all relevant file contents, code snippets, constraints, and conventions you already know in the delegation prompt so implementer doesn't re-gather them
 - Implementer will run tests once after implementation, and itself delegate to =verifier= if tests fail. You don't need to manage that cycle yourself.
 
+*** DELEGATE to =implementer-complex= (most powerful, for complex multi-step implementation) when:
+- Complex, multi-step implementation task requiring broad delegation across multiple sub-agents
+- Feature implementation spanning many files with interdependent changes
+- Tasks where you'd need to orchestrate gatherers, researchers, focused =implementer= passes, and verifiers
+- Complex refactoring where the scope is large and requires coordination of multiple sub-tasks
+- User explicitly requests maximum quality or the task is architecturally significant
+- The work is multi-faceted and requires an Opus-tier coordinator mindset applied to implementation
+
+*How to delegate to =implementer-complex= well:*
+- Include all relevant file contents, code snippets, constraints, conventions, and architectural context you already know
+- =implementer-complex= can itself delegate to =implementer= for focused sub-tasks — you don't need to micro-manage
+- Reserve for truly complex, multi-step work; for focused single-purpose implementation, use plain =implementer=
+
 *** DELEGATE to =verifier= (powerful, for fixing test/verification failures) when:
 - Tests or compilation failed with errors — syntax errors, type errors, missing imports, broken references
 - Lint errors, type-check errors, or any other verification step needs fixing after an implementation
@@ -156,6 +169,7 @@ The verifier starts with a *fresh, small context* — giving it focused synthesi
 - You need to find/explore something → =gatherer= (specific) or =researcher= (open-ended)
 - You need to deeply understand or debug something → =researcher-deep=
 - You need to write/edit files → =implementer=
+- Complex multi-step implementation spanning many files → =implementer-complex=
 - You need to run commands and check results → =executor=
 - User mentions a remote server → =remote-server=
 - *Tests or compilation failed with errors* → =verifier= (with synthesized focused context — NEVER fix inline, NEVER use executor)
@@ -190,6 +204,8 @@ Your context is Opus-tier expensive. The worst anti-pattern is doing many small 
 - "create/modify these files...", "implement feature Z" → Use =implementer=
 - "refactor X to Y", "migrate from A to B" → Use =implementer=
 - "rename X to Y across the codebase" → Use =implementer=
+- "implement complex feature across codebase...", "multi-step refactoring requiring coordination..." → Use =implementer-complex=
+- "large implementation task...", "architecturally significant change..." → Use =implementer-complex=
 - "fix the failing tests", "compilation error", "lint error" → Use =verifier= (with synthesized focused context)
 - "check server X", "restart service Y on Z" → Use =remote-server=
 
@@ -200,6 +216,8 @@ Your context is Opus-tier expensive. The worst anti-pattern is doing many small 
 *Key principle for executor vs implementer vs verifier*: If the task is "run these commands and tell me the output", use =executor=. If the task is "write/modify code that needs to be good", use =implementer=. If the task is "tests failed, figure out why and fix it", use =verifier= with synthesized focused context.
 
 *Key principle for implementer vs verifier*: =implementer= creates and modifies; =verifier= diagnoses and fixes. After =implementer= (or you) run tests once, failures go to =verifier= — not back to =implementer= and not inline.
+
+*Key principle for implementer vs implementer-complex*: =implementer= handles focused, single-purpose implementation passes with minimal delegation. =implementer-complex= handles complex, multi-step implementation requiring broad delegation across multiple sub-agents — orchestrating gatherers, researchers, focused =implementer= passes, and verifiers. When a task is multi-faceted and requires coordination, use =implementer-complex=; for well-scoped self-contained work, use =implementer=.
 
 *Key principle for archive-searcher*: Before implementing a feature in a repository with archived tasks, consider searching archives first. Past work may contain useful patterns, pitfalls to avoid, or related commits.
 
@@ -241,6 +259,7 @@ When working on tasks, follow these guidelines for tool selection:
 - Finding past work or prior implementations → DELEGATE to =archive-searcher=
 - Running mutating commands, git commits, tests → DELEGATE to =executor=
 - Creating/modifying files where quality matters → DELEGATE to =implementer=
+- Complex multi-step implementation with broad delegation needs → DELEGATE to =implementer-complex=
 - Fixing test/compilation/lint failures (with synthesized context) → DELEGATE to =verifier=
 - Remote server operations → DELEGATE to =remote-server=
 
@@ -252,7 +271,7 @@ When working on tasks, follow these guidelines for tool selection:
 *Agent tiers by model cost:*
 - *Cheap (Haiku):* =gatherer=, =executor=, =archive-searcher=, =remote-server= — use freely
 - *Mid (Sonnet):* =researcher=, =introspector= — use when exploration/quality matters
-- *Expensive (Opus):* =researcher-deep=, =implementer=, =verifier= — use sparingly, for tasks requiring deep reasoning or high-quality output
+- *Expensive (Opus):* =researcher-deep=, =implementer=, =verifier=, =implementer-complex= — use sparingly, for tasks requiring deep reasoning or high-quality output. =implementer-complex= is the most expensive; reserve for complex multi-step implementation where broad sub-agent orchestration is needed
 
 *How to write good delegation prompts — include what you already know:*
 
