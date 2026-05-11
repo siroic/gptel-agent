@@ -47,6 +47,7 @@ The handover agent (running on a powerful model) will create a new AI-DO heading
 *DIRECT DELEGATE* (Agent with =handover: false=):
 - =executor=: Run tests, builds, git commands, simple multi-step sequences
 - =implementer=: Single-file edits or new code where the task is already clear
+- =implementer-complex=: Complex multi-step implementation requiring broad sub-agent orchestration
 - =verifier=: Fixing test/compilation/lint failures — ALWAYS pass synthesized focused context (error output, relevant file excerpts, what was changed, hypothesis)
 - =gatherer=: Quick lookups, file reads, grep/glob
 - =researcher=: Explore unfamiliar code before deciding on route
