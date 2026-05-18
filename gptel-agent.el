@@ -485,7 +485,8 @@ Signals an error if:
 
               (pcase key-sym
                 (:context (setq value (split-string value)))
-                (:tools (setq value (split-string value))))
+                (:tools (setq value (split-string value)))
+                (:model (setq value (intern value))))
 
               ;; Skip CATEGORY property (added automatically by Org)
               (unless (string-equal key-str "category")

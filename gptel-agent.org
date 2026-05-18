@@ -1,0 +1,62 @@
+* MUST READ
+* Future plans
+* TODOs
+** TODO Add policy-based Agent Router to gptel-agent fork
+:PROPERTIES:
+:AREA: gptel-agent
+:TYPE: feature
+:DEPENDENCY_ON_GPTEL: no
+:DEPENDENCY_ON_GPTEL_PROMPTS: no
+:END:
+
+*** Goal
+Add a routing hook that selects sub-agent execution policy from project/task/role metadata while reusing existing `gptel-agent` preset-based delegation.
+
+*** Current finding
+`gptel-agent` already supports per-sub-agent `gptel` preset keys, including model/backend. The missing feature is policy-based routing before delegated execution.
+
+*** Implementation target
+Patch delegation around `gptel-agent--task`.
+
+*** Proposed API
+#+begin_src elisp
+(defcustom gptel-agent-route-function nil
+  "Function called before sub-agent execution to return extra preset keys.")
+#+end_src
+
+*** Route function input
+#+begin_src elisp
+(:subagent-type TYPE
+ :description DESCRIPTION
+ :prompt PROMPT
+ :agent AGENT
+ :buffer CURRENT-BUFFER
+ :org-properties PROPS)
+#+end_src
+
+*** Route function output
+#+begin_src elisp
+(:backend BACKEND
+ :model MODEL
+ :tools TOOLS
+ :max-tokens MAX-TOKENS)
+#+end_src
+
+*** Preset merge priority
+#+begin_src text
+base defaults
+< gptel-agent-preset
+< router result
+< agent file plist
+< task-local explicit overrides
+#+end_src
+
+*** Acceptance criteria
+- [ ] Existing behavior unchanged when `gptel-agent-route-function` is nil.
+- [ ] Sub-agents can be routed to different models.
+- [ ] Sub-agents can be routed to different backends.
+- [ ] Router can use Org/project/task properties.
+- [ ] Router does not depend on `gptel-prompts`.
+- [ ] No changes required in core `gptel`.
+- [ ] Document examples for coder/reviewer/verifier routing.
+- [ ] Add tests or examples proving mixed-model delegation works.
