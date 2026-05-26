@@ -1365,6 +1365,8 @@ ARG-VALUES is a list: (type description prompt)"
 
 (defun gptel-agent--task-overlay (where &optional agent-type description)
   "Create overlay for agent task at WHERE with AGENT-TYPE and DESCRIPTION."
+  (setq agent-type (or agent-type "agent")
+        description (or description "(no description)"))
   (let* ((bounds                  ;where to place the overlay, handle edge cases
           (save-excursion
             (goto-char where)
