@@ -1,6 +1,67 @@
 * MUST READ
 * Future plans
 * TODOs
+** AI-DO Make agent file tools buffer-aware (Read / Edit / Insert)
+*** Origin
+Discovered while investigating a =siro-orga= workspace report that
+gptel sends on-disk file content even when the visiting buffer has
+unsaved user edits.  The primary bug lives in gptel proper (tracked
+in =gptel.org=: /Prefer modified visiting buffer over disk in
+file-based context/).  This TODO covers the parallel issue in the
+gptel-agent file tools.
+
+*** Discussion highlights
+All three agent file tools read directly from disk via
+=insert-file-contents= and never consult visiting buffers:
+
+| Tool   | Function                          | Location (approx)            |
+|--------+-----------------------------------+------------------------------|
+| Read   | =gptel-agent--read-file-lines=    | =gptel-agent-tools.el:~1029= |
+| Edit   | =gptel-agent--replace-in-file=    | =gptel-agent-tools.el:~760=  |
+| Insert | =gptel-agent--insert-in-file=     | =gptel-agent-tools.el:~883=  |
+
+There are zero occurrences of =find-buffer-visiting=,
+=get-file-buffer=, or =buffer-modified-p= in =gptel-agent-tools.el=.
+
+Consequences:
+
+- *Read* returns stale content when the user has unsaved edits in
+  the visiting buffer — sub-agents reason on outdated text.
+- *Edit / Insert* write to disk under the user's feet without
+  reverting the visiting buffer, leaving the buffer and disk
+  out-of-sync.  Next user save clobbers the agent's edit; or the
+  agent's next Read sees the disk version that contradicts the
+  buffer the user is editing.
+
+*** Mission
+Make the three tools buffer-aware:
+
+1. *Read*: if =(find-buffer-visiting path)= returns a buffer, read
+   from that buffer instead of disk.  Note whether the buffer is
+   modified in the returned content (small annotation, so the LLM
+   knows it's reading unsaved state).
+2. *Edit / Insert*: detect a visiting buffer; perform the edit *in
+   the buffer* (preserving point/mark/undo) and then save it,
+   instead of writing the file and leaving the buffer dirty.
+   Alternatively: write file, then =revert-buffer= the visiting
+   buffer iff it was unmodified; refuse and surface an error if the
+   buffer is modified (user has conflicting unsaved edits).
+
+Pick one strategy for Edit/Insert — recommend the in-buffer edit
+path because it composes with the user's undo history.
+
+*** TODOs
+- [ ] Implement buffer-aware =gptel-agent--read-file-lines=.
+- [ ] Implement buffer-aware =gptel-agent--replace-in-file=.
+- [ ] Implement buffer-aware =gptel-agent--insert-in-file=.
+- [ ] Decide and document the modified-buffer conflict policy for
+  Edit/Insert.
+- [ ] Tests under =test/= covering: read with modified buffer; edit
+  with modified buffer; edit with unmodified buffer (verify buffer
+  ends up in sync with disk).
+
+*** Outcomes / Results
+
 ** TODO Add policy-based Agent Router to gptel-agent fork
 :PROPERTIES:
 :AREA: gptel-agent
