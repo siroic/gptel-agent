@@ -745,11 +745,15 @@ Returns:
 
 Signals:
   error - On any failure condition (caught and displayed by gptel)"
-  (unless (file-readable-p path)
+  (unless (or (file-readable-p path)
+              (gptel-agent--visiting-buffer-for path))
     (error "Error: File or directory %s is not readable" path))
 
   (unless new-str-or-diff
     (error "Required argument `new_str' missing"))
+
+  (when (file-symlink-p path)
+    (setq path (file-truename path)))
 
   (if (or (eq diffp :json-false) old-str)
       ;; Replacement by Text
@@ -757,24 +761,54 @@ Signals:
         (when (file-directory-p path)
           (error "Error: String replacement is intended for single files, not directories (%s)"
                  path))
-        (with-temp-buffer
-          (insert-file-contents path)
-          (if (search-forward old-str nil t)
-              (if (save-excursion (search-forward old-str nil t))
-                  (error "Error: Match is not unique.\
+        (let ((buf (gptel-agent--visiting-buffer-for path)))
+          (if buf
+              ;; Apply edit inside the visiting buffer, then save.
+              ;; Using literal=t avoids backslash-expansion in
+              ;; NEW-STR-OR-DIFF (no need to pre-escape).
+              (with-current-buffer buf
+                (save-excursion
+                  (save-restriction
+                    (widen)
+                    (goto-char (point-min))
+                    (if (search-forward old-str nil t)
+                        (if (save-excursion (search-forward old-str nil t))
+                            (error "Error: Match is not unique.\
 Consider providing more context for the replacement, or a unified diff")
-                ;; TODO: More robust backspace escaping
-                (replace-match (string-replace  "\\" "\\\\" new-str-or-diff))
-                (write-region nil nil path)
-                (format "Successfully replaced %s (truncated) with %s (truncated)"
-                        (truncate-string-to-width old-str 20 nil nil t)
-                        (truncate-string-to-width new-str-or-diff 20 nil nil t)))
-            (error "Error: Could not find old_str \"%s\" in file %s"
-                   (truncate-string-to-width old-str 20) path))))
+                          (replace-match new-str-or-diff t t)
+                          (save-buffer)
+                          (format "Successfully replaced %s (truncated) with %s (truncated)"
+                                  (truncate-string-to-width old-str 20 nil nil t)
+                                  (truncate-string-to-width new-str-or-diff 20 nil nil t)))
+                      (error "Error: Could not find old_str \"%s\" in file %s"
+                             (truncate-string-to-width old-str 20) path)))))
+            ;; No visiting buffer: original disk path.
+            (with-temp-buffer
+              (insert-file-contents path)
+              (if (search-forward old-str nil t)
+                  (if (save-excursion (search-forward old-str nil t))
+                      (error "Error: Match is not unique.\
+Consider providing more context for the replacement, or a unified diff")
+                    ;; TODO: More robust backspace escaping
+                    (replace-match (string-replace "\\" "\\\\" new-str-or-diff))
+                    (write-region nil nil path)
+                    (format "Successfully replaced %s (truncated) with %s (truncated)"
+                            (truncate-string-to-width old-str 20 nil nil t)
+                            (truncate-string-to-width new-str-or-diff 20 nil nil t)))
+                (error "Error: Could not find old_str \"%s\" in file %s"
+                       (truncate-string-to-width old-str 20) path))))))
     ;; Replacement by Diff
     (unless (executable-find "patch")
       (error "Error: Command \"patch\" not available, cannot apply diffs.\
 Use string replacement instead"))
+    ;; Pre-flight: if any visiting buffer for the target is modified,
+    ;; refuse before touching disk so we never leave buffer and disk
+    ;; out of sync.
+    (let ((buf (and (not (file-directory-p path))
+                    (gptel-agent--visiting-buffer-for path))))
+      (when (and buf (buffer-modified-p buf))
+        (error "Error: Visiting buffer for %s has unsaved edits.\
+Save or revert it before applying a diff" path)))
     (let* ((out-buf-name (generate-new-buffer-name "*patch-stdout*"))
            ;; (err-buf-name (generate-new-buffer-name "*patch-stderr*"))
            (target-file (expand-file-name path))
@@ -818,10 +852,18 @@ Use string replacement instead"))
                   (setq result-output (buffer-string)))))
 
             (if (= exit-status 0)
-                (format "Diff successfully applied to %s.
+                (progn
+                  ;; Refresh any visiting buffer so it reflects the
+                  ;; on-disk change.  We pre-checked above that no
+                  ;; visiting buffer is modified, so this is safe.
+                  (when-let* ((buf (and (not (file-directory-p path))
+                                        (gptel-agent--visiting-buffer-for path))))
+                    (with-current-buffer buf
+                      (revert-buffer t t t)))
+                  (format "Diff successfully applied to %s.
 Patch command options: %s
 Patch STDOUT:\n%s"
-                        target-file patch-options result-output)
+                          target-file patch-options result-output))
               ;; Signal an Elisp error, which gptel will catch and display.
               ;; The arguments to 'error' become the error message.
               (error "Error: Failed to apply diff to %s (exit status %s).
@@ -884,33 +926,59 @@ ARG-VALUES is a list: (path line-number new-str)"
 LINE-NUMBER conventions:
 - 0 inserts at the beginning of the file
 - -1 inserts at the end of the file
-- N > 1 inserts before line N"
-  (unless (file-readable-p path)
+- N > 1 inserts before line N
+
+When a buffer is visiting PATH, the insertion happens inside that
+buffer (preserving the user's undo history, markers, and point), and
+then the buffer is saved.  This proceeds even if the buffer has
+unsaved edits — an insertion is purely additive and the user's edits
+are preserved by the same save."
+  (unless (or (file-readable-p path)
+              (gptel-agent--visiting-buffer-for path))
     (error "Error: File %s is not readable" path))
 
   (when (file-directory-p path)
     (error "Error: Cannot insert into directory %s" path))
 
-  (with-temp-buffer
-    (insert-file-contents path)
+  (when (file-symlink-p path)
+    (setq path (file-truename path)))
 
-    (pcase line-number
-      (0 (goto-char (point-min)))       ; Insert at the beginning
-      (-1 (goto-char (point-max)))      ; Insert at the end
-      (_ (goto-char (point-min))
-         (forward-line line-number)))   ; Insert before line N
+  (let ((buf (gptel-agent--visiting-buffer-for path)))
+    (if buf
+        (with-current-buffer buf
+          (save-excursion
+            (save-restriction
+              (widen)
+              (pcase line-number
+                (0 (goto-char (point-min)))
+                (-1 (goto-char (point-max)))
+                (_ (goto-char (point-min))
+                   (forward-line line-number)))
+              (insert new-str)
+              (unless (or (string-suffix-p "\n" new-str) (eobp))
+                (insert "\n"))))
+          (save-buffer)
+          (format "Successfully inserted text at line %d in %s" line-number path))
+      (with-temp-buffer
+        (insert-file-contents path)
 
-    ;; Insert the new string
-    (insert new-str)
+        (pcase line-number
+          (0 (goto-char (point-min)))   ; Insert at the beginning
+          (-1 (goto-char (point-max)))  ; Insert at the end
+          (_ (goto-char (point-min))
+             (forward-line line-number))) ; Insert before line N
 
-    ;; Ensure there's a newline after the inserted text if not already present
-    (unless (or (string-suffix-p "\n" new-str) (eobp))
-      (insert "\n"))
+        ;; Insert the new string
+        (insert new-str)
 
-    ;; Write the modified content back to the file
-    (write-region nil nil path)
+        ;; Ensure there's a newline after the inserted text if not already present
+        (unless (or (string-suffix-p "\n" new-str) (eobp))
+          (insert "\n"))
 
-    (format "Successfully inserted text at line %d in %s" line-number path)))
+        ;; Write the modified content back to the file
+        (write-region nil nil path)
+
+        (format "Successfully inserted text at line %d in %s" line-number path)))))
 
 (defun gptel-agent--write-file-preview-setup (arg-values _info)
   "Setup preview overlay for Write file tool call.
@@ -1030,10 +1098,45 @@ Raises an error if PATTERN is empty, PATH is not readable, or the
       (gptel-agent--truncate-buffer "glob")
       (buffer-string))))
 
+;;;; Buffer-aware helpers
+(defun gptel-agent--visiting-buffer-for (filename)
+  "Return the live buffer visiting FILENAME, or nil.
+
+Resolves symlinks via `file-truename' before consulting
+`find-buffer-visiting' (which itself uses inode comparison, but the
+truename pass keeps callers consistent when the file does not yet
+exist on disk)."
+  (let ((truename (if (file-exists-p filename)
+                      (file-truename filename)
+                    (expand-file-name filename))))
+    (find-buffer-visiting truename)))
+
+(defun gptel-agent--buffer-slice-lines (buffer start-line end-line)
+  "Return a string of lines START-LINE..END-LINE (inclusive) from BUFFER.
+
+When both START-LINE and END-LINE are nil, return the whole buffer."
+  (with-current-buffer buffer
+    (save-restriction
+      (widen)
+      (if (and (not start-line) (not end-line))
+          (buffer-substring-no-properties (point-min) (point-max))
+        (save-excursion
+          (goto-char (point-min))
+          (forward-line (1- start-line))
+          (let ((beg (point)))
+            (goto-char (point-min))
+            (forward-line end-line)
+            (buffer-substring-no-properties beg (point))))))))
+
 ;;;; Read files or directories
 (defun gptel-agent--read-file-lines (filename start-line end-line)
-  "Return lines START-LINE to END-LINE fom FILENAME."
-  (unless (file-readable-p filename)
+  "Return lines START-LINE to END-LINE fom FILENAME.
+
+If a buffer is visiting FILENAME, its contents (not disk) are read.
+When the visiting buffer has unsaved edits, the returned content is
+prefixed with a single-line annotation so the caller knows."
+  (unless (or (file-readable-p filename)
+              (gptel-agent--visiting-buffer-for filename))
     (error "Error: File %s is not readable" filename))
 
   (when (file-directory-p filename)
@@ -1042,14 +1145,31 @@ Raises an error if PATTERN is empty, PATH is not readable, or the
   (when (file-symlink-p filename)
     (setq filename (file-truename filename)))
 
-  (if (and (not start-line) (not end-line)) ;read full file
+  (let ((buf (gptel-agent--visiting-buffer-for filename)))
+    (cond
+     (buf
+      (let* ((modified (buffer-modified-p buf))
+             (annotation (when modified
+                           "\
+;; [gptel-agent] Reading from visiting buffer with unsaved edits.\n"))
+             (buf-size (with-current-buffer buf (buffer-size))))
+        (if (and (not start-line) (not end-line))
+            (if (> buf-size (* gptel-agent-read-file-size-threshold 1024))
+                (error "Error: File is too large (> %d KB).Please specify a line range to read"
+                       gptel-agent-read-file-size-threshold)
+              (concat annotation
+                      (gptel-agent--buffer-slice-lines buf nil nil)))
+          (concat annotation
+                  (gptel-agent--buffer-slice-lines buf start-line end-line)))))
+     ((and (not start-line) (not end-line)) ;read full file
       (if (> (file-attribute-size (file-attributes filename))
              (* gptel-agent-read-file-size-threshold 1024))
           (error "Error: File is too large (> %d KB).Please specify a line range to read"
                  gptel-agent-read-file-size-threshold)
         (with-temp-buffer
           (insert-file-contents filename)
-          (buffer-string)))
+          (buffer-string))))
+     (t
     ;; TODO: Handle nil start-line OR nil end-line
     (cl-decf start-line)
     (let* ((file-size (nth 7 (file-attributes filename)))
@@ -1086,7 +1206,7 @@ Raises an error if PATTERN is empty, PATH is not readable, or the
                  filename nil byte-offset (+ byte-offset chunk-size))
                 (setq byte-offset (+ byte-offset chunk-size))))))
 
-        (buffer-string)))))
+        (buffer-string)))))))
 
 (defun gptel-agent--grep (regex path &optional glob context-lines)
   "Search for REGEX in file or directory at PATH using ripgrep.
