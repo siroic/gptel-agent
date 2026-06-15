@@ -1949,7 +1949,7 @@ Only one todo can be `in_progress` at a time."
         :status
         ( :type string
           :enum ["pending" "in_progress" "completed"]
-          :description "Task status: pending, in_progress (exactly one), or completed")
+          :description "Task status: pending, in_progress, or completed (exactly one)")
         :activeForm
         ( :type string :minLength 1
           :description "Present continuous form shown during execution (e.g., 'Running tests')")))))
