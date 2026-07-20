@@ -1520,6 +1520,27 @@ ARG-VALUES is a list: (type description prompt)"
        (concat msg (propertize "Waiting..." 'face 'warning) "\n"
                gptel-agent--hrule)))))
 
+(defun gptel-agent--abort-message (info agent-type description)
+  "Return the task-abort message for a gptel agent task.
+
+INFO is the request info plist, AGENT-TYPE the agent name and
+DESCRIPTION a short description of the task.
+
+When INFO's :abort-reason is `user', report an ordinary
+user-initiated abort.  Otherwise (a `system' reason or an absent
+reason) report a loud SYSTEM abort, including the :abort-cause
+string and, when present, the :error details."
+  (if (eq (plist-get info :abort-reason) 'user)
+      (format "Error: Task \"%s\" was aborted by the user. %s could not finish."
+              description agent-type)
+    (let ((cause (or (plist-get info :abort-cause) "unknown"))
+          (err (plist-get info :error)))
+      (concat
+       (format "Error: Task \"%s\" was aborted by the SYSTEM (not the user); \
+%s could not finish.\nCause: %s"
+               description agent-type cause)
+       (when err (format "\nError details: %S" err))))))
+
 (defun gptel-agent--task (main-cb agent-type description prompt)
   "Call a gptel agent to do specific compound tasks.
 
@@ -1575,9 +1596,7 @@ Error details: %S"
               ('abort
                (delete-overlay ov)
                (funcall main-cb
-                        (format "Error: Task \"%s\" was aborted by the user. \
-%s could not finish."
-                                description agent-type))))))))))
+                        (gptel-agent--abort-message info agent-type description))))))))))
 
 ;;; Register tool call preview functions
 
