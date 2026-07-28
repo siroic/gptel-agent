@@ -1,4 +1,20 @@
 * MUST READ
+** Template placeholders in agent files
+Agent definition files may contain ={{VAR-NAME}}= placeholders.  They are
+expanded by =gptel-agent-update= (via =gptel-agent--expand-templates=),
+so the substituted values are computed once and stay stable for the
+whole session — session values come from =gptel-agent--session-templates=.
+
+Available placeholders:
+
+- ={{AGENTS}}= — formatted list of the registered agents (name +
+  description).
+- ={{SKILLS}}= — the available-skills block for the =Skill= tool.
+- ={{USER}}= — =user-login-name=.
+- ={{HOME}}= — the home directory, normalized with *no* trailing slash,
+  so write ={{HOME}}/bin= (not ={{HOME}}bin=).  Falls back to
+  =(expand-file-name "~")= when =$HOME= is unset or empty.
+- ={{HOST}}= — =system-name=.
 * Future plans
 * TODOs
 ** AI-DO Make agent file tools buffer-aware (Read / Edit / Insert)

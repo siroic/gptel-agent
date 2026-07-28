@@ -285,9 +285,10 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
                        into agent-list
                        finally return (apply #'concat agent-list)))
              ;; Create templates alist
-             (templates (list
-                         (cons "AGENTS" agents-list-str)
-                         (cons "SKILLS" skills-str))))
+             (templates (append (list
+                                 (cons "AGENTS" agents-list-str)
+                                 (cons "SKILLS" skills-str))
+                                (gptel-agent--session-templates))))
         (when agent-file                ; Parse the agent file with templates
           (setf (alist-get name gptel-agent--agents nil t #'equal)
                 (cdr (gptel-agent-read-file agent-file templates)))))))
@@ -306,6 +307,19 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
 ;;; Sub-agent definition parsers for Markdown and Org
 
 (defalias 'gptel-agent-validator-default #'always)
+
+(defun gptel-agent--session-templates ()
+  "Return template pairs describing the current session environment.
+Provides USER, HOME and HOST for {{VAR-NAME}} expansion in agent files.
+HOME never carries a trailing slash, so that a template such as
+{{HOME}}/bin expands to a well-formed file name."
+  (let ((home (getenv "HOME")))
+    (list (cons "USER" (user-login-name))
+          (cons "HOME" (directory-file-name
+                        (if (and home (not (string-empty-p home)))
+                            home
+                          (expand-file-name "~"))))
+          (cons "HOST" (system-name)))))
 
 (defun gptel-agent--expand-templates (start templates)
   "Expand template variables in the current buffer from START to point-max.
