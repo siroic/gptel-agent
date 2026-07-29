@@ -2025,7 +2025,8 @@ Should include exactly what information the agent should return."))
  :category "gptel-agent"
  :async t
  :confirm t
- :include t)
+ :include t
+ :org-output t)
 
 (provide 'gptel-agent-tools)
 ;;; gptel-agent-tools.el ends here
