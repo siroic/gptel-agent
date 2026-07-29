@@ -310,16 +310,22 @@ AGENT-SKILLS is a alist of skill names and associated plist as value
 
 (defun gptel-agent--session-templates ()
   "Return template pairs describing the current session environment.
-Provides USER, HOME and HOST for {{VAR-NAME}} expansion in agent files.
-HOME never carries a trailing slash, so that a template such as
-{{HOME}}/bin expands to a well-formed file name."
+Provides USER, HOME, HOST and CWD for {{VAR-NAME}} expansion in agent
+files.  HOME never carries a trailing slash, so that a template such as
+{{HOME}}/bin expands to a well-formed file name.  CWD is
+`default-directory' as seen when this function runs (normally from
+`gptel-agent-update'), expanded, abbreviated and likewise without a
+trailing slash, so the value stays stable for the session."
   (let ((home (getenv "HOME")))
     (list (cons "USER" (user-login-name))
           (cons "HOME" (directory-file-name
                         (if (and home (not (string-empty-p home)))
                             home
                           (expand-file-name "~"))))
-          (cons "HOST" (system-name)))))
+          (cons "HOST" (system-name))
+          (cons "CWD" (directory-file-name
+                       (abbreviate-file-name
+                        (expand-file-name default-directory)))))))
 
 (defun gptel-agent--expand-templates (start templates)
   "Expand template variables in the current buffer from START to point-max.

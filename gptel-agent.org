@@ -15,6 +15,10 @@ Available placeholders:
   so write ={{HOME}}/bin= (not ={{HOME}}bin=).  Falls back to
   =(expand-file-name "~")= when =$HOME= is unset or empty.
 - ={{HOST}}= — =system-name=.
+- ={{CWD}}= — the current directory (=default-directory=, expanded and
+  abbreviated to =~/...= form, *no* trailing slash).  The value is frozen
+  at =gptel-agent-update= time for prompt-cache stability, so it does not
+  follow later buffer/directory changes.
 * Future plans
 * TODOs
 ** AI-DO Make agent file tools buffer-aware (Read / Edit / Insert)

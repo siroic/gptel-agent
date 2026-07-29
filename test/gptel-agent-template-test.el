@@ -15,9 +15,9 @@
   (cdr (assoc key (gptel-agent--session-templates))))
 
 (ert-deftest gptel-agent-template-test-session-templates-keys ()
-  "Session templates provide USER, HOME and HOST as non-empty strings."
+  "Session templates provide USER, HOME, HOST and CWD as non-empty strings."
   (let ((templates (gptel-agent--session-templates)))
-    (dolist (key '("USER" "HOME" "HOST"))
+    (dolist (key '("USER" "HOME" "HOST" "CWD"))
       (let ((cell (assoc key templates)))
         (should cell)
         (should (stringp (cdr cell)))
@@ -80,6 +80,39 @@ Also guards against an empty HOME environment variable leaking through."
   ;; A HOME of "/" is the one legitimate trailing slash.
   (let ((process-environment (cons "HOME=/" process-environment)))
     (should (string= (gptel-agent-template-test--value "HOME") "/"))))
+
+(ert-deftest gptel-agent-template-test-cwd-value ()
+  "CWD reflects `default-directory', abbreviated and without trailing slash."
+  (let* ((dir (file-name-as-directory (expand-file-name "cwd-test" "/tmp")))
+         (default-directory dir)
+         (value (gptel-agent-template-test--value "CWD")))
+    (should (stringp value))
+    (should (string= value (directory-file-name
+                            (abbreviate-file-name (expand-file-name dir)))))
+    (should-not (string-suffix-p "/" value)))
+  ;; Also true for the home directory, where abbreviation kicks in.
+  (let* ((default-directory (expand-file-name "~/"))
+         (value (gptel-agent-template-test--value "CWD")))
+    (should (string= value (directory-file-name
+                            (abbreviate-file-name (expand-file-name "~/")))))
+    (should-not (string-suffix-p "/" value))))
+
+(ert-deftest gptel-agent-template-test-cwd-root-directory ()
+  "A `default-directory' of \"/\" keeps its one legitimate trailing slash."
+  (let ((default-directory "/"))
+    (should (string= (gptel-agent-template-test--value "CWD") "/"))))
+
+(ert-deftest gptel-agent-template-test-expand-cwd-placeholder ()
+  "{{CWD}} is replaced with the current directory value."
+  (with-temp-buffer
+    (let ((default-directory (file-name-as-directory
+                              (expand-file-name "cwd-expand" "/tmp"))))
+      (insert "cwd={{CWD}}/sub")
+      (gptel-agent--expand-templates (point-min) (gptel-agent--session-templates))
+      (should (string= (buffer-string)
+                       (format "cwd=%s/sub"
+                               (gptel-agent-template-test--value "CWD"))))
+      (should-not (string-match-p "//" (buffer-string))))))
 
 (ert-deftest gptel-agent-template-test-expand-all-variable-kinds ()
   "AGENTS/SKILLS and the session templates expand together.
