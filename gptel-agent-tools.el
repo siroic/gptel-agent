@@ -1661,14 +1661,16 @@ Example: 'ls -la | head -20' or 'grep -i error app.log | tail -50'"))
                (setq result (eval (read expression) t))
                (when (> (buffer-size standard-output) 0)
                  (setq output (with-current-buffer standard-output (buffer-string))))
-               (concat
-                (format "Result:\n%S" result)
-                (and output (format "\n\nSTDOUT:\n%s" output))))
+               (gptel--sanitize-string
+                (concat
+                 (format "Result:\n%S" result)
+                 (and output (format "\n\nSTDOUT:\n%s" output)))))
            ((error user-error)
-            (concat
-             (format "Error: eval failed with error %S: %S"
-                     (car err) (cdr err))
-             (and output (format "\n\nSTDOUT:\n%s" output)))))
+            (gptel--sanitize-string
+             (concat
+              (format "Error: eval failed with error %S: %S"
+                      (car err) (cdr err))
+              (and output (format "\n\nSTDOUT:\n%s" output))))))
        (kill-buffer standard-output))))
  :description "Evaluate Elisp EXPRESSION and return result and any printed output.
 
