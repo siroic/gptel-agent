@@ -193,14 +193,32 @@ both non-nil, TEMPLATES will be ignored."
       (cl-remf agent-plist :name)
       (cons name agent-plist))))
 
+(defconst gptel-agent--agent-file-regexp "\\`[^.#][^/]*\\.\\(org\\|md\\)\\'"
+  "Regexp matching the basename of a loadable agent definition file.
+
+Only plain \".org\" and \".md\" files qualify.  Names starting with a
+dot or a hash are rejected, which excludes Emacs lockfiles
+ (\".#foo.org\") and autosave files (\"#foo.org#\"); the anchored
+extension excludes backup files (\"foo.org~\").")
+
 (defun gptel-agent--update-agents ()
   "Update agent definitions from `gptel-agent-dirs'.
+
+Only regular files whose basename matches
+`gptel-agent--agent-file-regexp' are considered, i.e. plain \".org\"
+and \".md\" files.  Backup (\"foo.org~\"), autosave (\"#foo.org#\") and
+lock (\".#foo.org\") files are ignored, as are subdirectories: a
+directory such as \"agents/common/\" is never scanned and may be used
+to hold shared documents included via transclusion.
+
 Returns an alist of (agent-name . file-path)."
   (setq gptel-agent--agents nil)
   (let ((agent-files nil))               ; Alist of (agent-name . file-path)
     (mapc (lambda (dir)
-            (dolist (agent-file (cl-delete-if-not #'file-regular-p
-                                                  (directory-files dir 'full)))
+            (dolist (agent-file (cl-delete-if-not
+                                 #'file-regular-p
+                                 (directory-files
+                                  dir 'full gptel-agent--agent-file-regexp)))
               (pcase-let ((`(,name . ,agent-plist) ;loading only metadata
                            (gptel-agent-read-file agent-file nil t)))
                 (setf (alist-get name gptel-agent--agents nil t #'equal)
@@ -468,6 +486,44 @@ opening delimiter '---' found but no closing delimiter" file-path))
                   (plist-put parsed-yaml :system expanded-body)
                 parsed-yaml))))))))
 
+(defconst gptel-agent--transclude-regexp "^[ \t]*#\\+transclude:"
+  "Regexp matching an Org transclusion keyword line.")
+
+(defun gptel-agent--resolve-transclusions (file-path)
+  "Resolve `org-transclusion' keywords in the current buffer.
+
+The current buffer must already be in Org mode and hold the contents of
+FILE-PATH, which is used both to resolve relative links and for error
+reporting.
+
+Does nothing when the buffer contains no \"#+transclude:\" keyword.
+Otherwise every keyword is replaced by the content it points at, with
+`default-directory' bound to the directory of FILE-PATH so that
+relative \"file:\" links resolve against the agent file's own location.
+
+Note that transcluded text carries read-only text properties; callers
+that modify the buffer afterwards must bind `inhibit-read-only'.
+
+Signals an error if `org-transclusion' is unavailable, or if any
+keyword survives resolution (an unreadable or unmatched target).
+Leaves point at `point-min'."
+  (goto-char (point-min))
+  (when (let ((case-fold-search t))
+          (re-search-forward gptel-agent--transclude-regexp nil t))
+    (unless (require 'org-transclusion nil t)
+      (error "gptel-agent: %s uses #+transclude: but org-transclusion is unavailable"
+             file-path))
+    (let ((default-directory (file-name-directory (expand-file-name file-path))))
+      (org-transclusion-add-all))
+    (goto-char (point-min))
+    (when (let ((case-fold-search t))
+            (re-search-forward gptel-agent--transclude-regexp nil t))
+      (error "gptel-agent: unresolved transclusion in %s: %s"
+             file-path
+             (string-trim (buffer-substring-no-properties
+                           (line-beginning-position) (line-end-position))))))
+  (goto-char (point-min)))
+
 (defun gptel-agent-parse-org-properties (file-path &optional validator templates metadata-only)
   "Parse an Org file with properties in a :PROPERTIES: drawer.
 
@@ -490,13 +546,20 @@ The function expects a :PROPERTIES: block at the top of the file
 backend, model, etc. Property names are case-insensitive and will
 be converted to lowercase keyword symbols.
 
+Unless METADATA-ONLY is non-nil, \"#+transclude:\" keywords in the body
+are resolved via `org-transclusion' before templates are expanded, so
+that templates inside transcluded content are expanded too.  Relative
+links in those keywords resolve against the directory of FILE-PATH.
+
 Returns a plist with:
 - All properties from the :PROPERTIES: drawer as keywords
 - When metadata-only is nil, :system containing the Org file body text
-  after the property block (with templates expanded)
+  after the property block (with transclusions resolved and templates
+  expanded)
 
 Signals an error if:
-- A key in the property block is not allowed by the validator."
+- A key in the property block is not allowed by the validator.
+- A \"#+transclude:\" keyword cannot be resolved."
   (unless validator
     (setq validator #'gptel-agent-validator-default))
 
@@ -504,6 +567,11 @@ Signals an error if:
     (insert-file-contents file-path)
     (let ((org-inhibit-startup t))
       (delay-mode-hooks (org-mode)))
+
+    ;; Resolve transclusions before anything else looks at the body.  Skipped
+    ;; for metadata-only reads, which never touch the body.
+    (unless metadata-only
+      (gptel-agent--resolve-transclusions file-path))
 
     ;; Try to get the property block at this position
     (let ((prop-range (org-get-property-block)))
@@ -513,7 +581,9 @@ Signals an error if:
               nil ; Requested only metadata but none exists -> return empty plist (nil)
             ;; Return body as :system, applying templates only when metadata-only is nil
             (when templates             ;Apply template substitutions
-              (gptel-agent--expand-templates (point-min) templates))
+              ;; inhibit-read-only: transcluded text is read-only.
+              (let ((inhibit-read-only t))
+                (gptel-agent--expand-templates (point-min) templates)))
             (list :system (buffer-substring-no-properties
                            (point-min) (point-max))))
         ;; Extract properties as an alist
@@ -579,8 +649,10 @@ Signals an error if:
           (if metadata-only
               props-plist
             (when templates
-              ;; Apply template substitutions in place, then extract body text
-              (gptel-agent--expand-templates body-start templates))
+              ;; Apply template substitutions in place, then extract body text.
+              ;; inhibit-read-only: transcluded text is read-only.
+              (let ((inhibit-read-only t))
+                (gptel-agent--expand-templates body-start templates)))
             ;; Extract the expanded body text
             (if-let* ((body-text (buffer-substring-no-properties
                                   body-start (point-max)))

@@ -19,6 +19,38 @@ Available placeholders:
   abbreviated to =~/...= form, *no* trailing slash).  The value is frozen
   at =gptel-agent-update= time for prompt-cache stability, so it does not
   follow later buffer/directory changes.
+** Agent file discovery and transclusion
+Directory scanning (=gptel-agent--update-agents=) accepts only *regular*
+files whose basename matches =gptel-agent--agent-file-regexp= — plain
+=.org= and =.md= files.  Consequently:
+
+- Backup files (=foo.org~=), autosave files (=#foo.org#=) and lockfiles
+  (=.#foo.org=) are ignored, so editing an agent file no longer registers
+  bogus agents.
+- Subdirectories of an agents dir are *not* scanned.  Shared or common
+  documents therefore belong in a subdirectory such as =agents/common/=,
+  where they cannot be mistaken for agents.
+
+Org agent files may pull in shared content with =org-transclusion=
+keywords, e.g. a body line =#+transclude: [[file:common/shared.org::*Section]]=.
+
+- Keywords are resolved at parse time by
+  =gptel-agent-parse-org-properties= (helper
+  =gptel-agent--resolve-transclusions=), which calls
+  =org-transclusion-add-all=.
+- Relative =file:= links resolve against the directory of the *agent
+  file*, not the current =default-directory=.
+- Resolution happens *before* ={{VAR}}= expansion, so placeholders inside
+  transcluded content are expanded too.  (Transcluded text is read-only,
+  so =inhibit-read-only= is bound around the expansion.)
+- Keyword properties such as =:only-contents= and =:level N= work as usual.
+- An unresolvable keyword (missing file or unmatched target) signals an
+  error naming the agent file — it is never silently skipped.
+- Transclusion is skipped for metadata-only reads (the agent-list scan),
+  which never look at the body, so directory scanning stays fast.
+
+Both behaviours are covered by ERT tests in
+=test/gptel-agent-parse-org-test.el=.
 ** Dynamic per-agent overrides for sub-agent launches
 =gptel-agent-subagent-overrides= (in =gptel-agent-tools.el=) is a =defvar=
 — *not* a =defcustom= — providing an override point for callers that need
