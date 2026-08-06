@@ -144,6 +144,66 @@ path because it composes with the user's undo history.
 
 *** Outcomes / Results
 
+** AI-DO Enforce hard size limit on tool results with spill-to-temp-file
+*** Origin
+- Initiated by user petri.  Trigger: large tool outputs (Bash, Eval,
+  etc.) flood the LLM context; a study of the AI-discussion freeze
+  raised the need for a universal cap.  Follow-up to research on the
+  tool-result pipeline.
+*** Discussion highlights
+- Every tool result — sync and async, from gptel, gptel-agent and
+  siro-orga tools — passes through a single choke point:
+  =gptel--process-tool-call= at =gptel/gptel-request.el:1958=:
+  #+begin_src elisp
+    (let ((result (gptel--sanitize-string (gptel--to-string result))))
+  #+end_src
+- A spill-to-file precedent already exists:
+  =gptel-agent--truncate-buffer= (=gptel-agent-tools.el:1045=)
+  writes full content to
+  =<temporary-file-directory>/gptel-agent-temp/<prefix>-<ts>-<rand>.txt=,
+  keeps the first ~50 lines, and appends a notice telling the model
+  to use the Read tool on the temp file.  But it is buffer-based,
+  hardcoded to 20000 chars, and used only by Glob and Grep.
+- Bash, Eval, WebSearch, WebFetch, Edit, Agent and the org tools
+  currently have NO output size limit.
+- Read tool has a separate 400 KB refuse-with-error threshold
+  (=gptel-agent-read-file-size-threshold=); unrelated but should
+  stay consistent in spirit.
+*** Mission
+Enforce a universal hard limit on tool-result size.  When a result
+exceeds the limit: write the full result to a temp file, return only
+a head snippet plus a notice stating the output was too large, giving
+the temp-file path, its size/line count, and instructing the model to
+read it selectively (Grep/Read with line ranges) rather than whole.
+*** Options
+- Option A (preferred): string-based generic function
+  =gptel-agent--limit-tool-result (result tool-name)= in
+  =gptel-agent-tools.el=, applied at the choke point via an
+  =:around= advice (or a thin patch, since =gptel= is our fork) on
+  =gptel--process-tool-call= / the line-1958 conversion.  Keeps the
+  gptel fork minimal; catches ALL tools with no per-tool changes.
+- Option B: patch =gptel--process-tool-call= directly in the =gptel=
+  fork (orga branch) to call the limiter.  Simplest control flow but
+  grows the fork diff.
+- Option C: per-tool wrapping at registration time (wrap each tool's
+  =:function=).  Catches results before stringification but misses
+  future tools unless wrapping is automatic in =gptel-make-tool=
+  usage.
+- Common details for all options:
+  - Limit as a =defcustom= (e.g. =gptel-agent-tool-result-max-chars=,
+    default ~20000, aligned with the existing Glob/Grep threshold).
+  - Refactor =gptel-agent--truncate-buffer= to share the new
+    string-based core so Glob/Grep use the same mechanism and the
+    hardcoded literal disappears.
+  - Snippet: first N lines (default ~50) + notice with temp-file
+    path, total size, and guidance to use Grep/Read with ranges.
+  - Feature on by default, no enabling variable (workspace policy).
+  - Tests: unit test for the limiter (under and over limit, temp
+    file created, snippet + notice format) and an error-path test
+    (unwritable temp dir signals an error rather than silently
+    dropping output).
+*** Outcomes / Results
+
 ** TODO Add policy-based Agent Router to gptel-agent fork
 :PROPERTIES:
 :AREA: gptel-agent
