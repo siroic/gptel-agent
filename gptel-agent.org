@@ -19,6 +19,36 @@ Available placeholders:
   abbreviated to =~/...= form, *no* trailing slash).  The value is frozen
   at =gptel-agent-update= time for prompt-cache stability, so it does not
   follow later buffer/directory changes.
+** Dynamic per-agent overrides for sub-agent launches
+=gptel-agent-subagent-overrides= (in =gptel-agent-tools.el=) is a =defvar=
+— *not* a =defcustom= — providing an override point for callers that need
+to compute sub-agent configuration from their own context.
+
+Its value is a plist mapping an agent-name *keyword* to a preset-style
+plist of gptel settings:
+
+#+begin_src emacs-lisp
+(:gatherer (:backend "DeepSeek" :model deepseek-v4-pro)
+ :executor (:backend "Claude" :model claude-haiku-4-5-20251001))
+#+end_src
+
+When =gptel-agent--task= launches an agent it splices the plist stored
+under that agent's keyword into the settings handed to
+=gptel-with-preset=, *after* the agent's own definition plist.  The
+resulting precedence chain is:
+
+: hard defaults < gptel-agent-preset < agent file < gptel-agent-subagent-overrides
+
+Note that the =AGENT-TYPE= argument of =gptel-agent--task= is a *string*
+(e.g. ="gatherer"=); it is converted to the lookup keyword with
+=(intern (concat ":" agent-type))=, so the keys of this variable must be
+keywords.
+
+The variable is nil by default and has no effect unless bound.  It is
+meant to be =let=-bound dynamically around a sub-agent launch — for
+example by an integration that derives settings from per-heading
+properties in an Org document — rather than set globally; use
+=gptel-agent-preset= or the agent files for persistent configuration.
 * Future plans
 * TODOs
 ** AI-DO Make agent file tools buffer-aware (Read / Edit / Insert)

@@ -83,6 +83,27 @@ parameters take precedence over this value."
                  (plist  :tag "Preset plist spec"))
   :group 'gptel-agent)
 
+(defvar gptel-agent-subagent-overrides nil
+  "Per-agent configuration overrides for sub-agent calls.
+
+A plist mapping an agent-name keyword to a preset-style plist of
+gptel settings, for example:
+
+  (:gatherer (:backend \"DeepSeek\" :model deepseek-v4-pro)
+   :executor (:backend \"Claude\" :model claude-haiku-4-5-20251001))
+
+When `gptel-agent--task' launches an agent, the plist stored under
+the keyword matching that agent's name is spliced into the settings
+applied by `gptel-with-preset', AFTER the agent's own definition
+plist.  The resulting precedence is
+
+  hard defaults < `gptel-agent-preset' < agent file < this variable.
+
+This variable is intended to be let-bound dynamically around a
+sub-agent launch by integrations that compute configuration from
+their own context (for example per-heading properties in an Org
+document).  It is nil by default, so it has no effect unless bound.")
+
 ;;; Tool use preview
 (defun gptel-agent--confirm-overlay (from to &optional no-hide)
   "Set up tool call preview overlay FROM TO.
@@ -1547,7 +1568,10 @@ string and, when present, the :error details."
 MAIN-CB is the main callback to return a value to the main loop.
 AGENT-TYPE is the name of the agent.
 DESCRIPTION is a short description of the task.
-PROMPT is the detailed prompt instructing the agent on what is required."
+PROMPT is the detailed prompt instructing the agent on what is required.
+
+Per-agent settings from `gptel-agent-subagent-overrides' take precedence
+over the agent's own definition."
   (gptel-with-preset
       (nconc (list :include-reasoning nil
                    :use-tools t
@@ -1557,7 +1581,12 @@ PROMPT is the detailed prompt instructing the agent on what is required."
                     (cl-etypecase gptel-agent-preset
                       (symbol (gptel-get-preset gptel-agent-preset))
                       (plist gptel-agent-preset))))
-              (cdr (assoc agent-type gptel-agent--agents)))
+              (copy-sequence (cdr (assoc agent-type gptel-agent--agents)))
+              ;; Dynamic per-agent override, highest priority (see
+              ;; gptel-agent-subagent-overrides)
+              (copy-sequence
+               (plist-get gptel-agent-subagent-overrides
+                          (intern (concat ":" agent-type)))))
     (let* ((info (gptel-fsm-info gptel--fsm-last))
            (where (or (plist-get info :tracking-marker)
                       (plist-get info :position)))
