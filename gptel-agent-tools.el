@@ -2057,7 +2057,7 @@ Should include exactly what information the agent should return."))
  :async t
  :confirm t
  :include t
- :org-output t)
+ :properties '(:org-output t))
 
 (provide 'gptel-agent-tools)
 ;;; gptel-agent-tools.el ends here
